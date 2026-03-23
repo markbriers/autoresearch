@@ -19,5 +19,9 @@ AGENTS.md
 # Experimental code/artifacts
 dev/
 
-# Results file
+# Results and tracking files (persist across git resets)
 results.tsv
+research_log.md
+findings.md
+run.log
+.mcp.json
