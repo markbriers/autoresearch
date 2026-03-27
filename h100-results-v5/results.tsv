@@ -1,0 +1,14 @@
+commit	val_bpb	memory_gb	status	description
+833395c	0.953643	67.8	baseline	v5 baseline (frozen config, research-only)
+c153321	0.000000	80.0	crash	H1: SwiGLU activation — OOM (extra gate projection exceeds 80GB VRAM)
+232245e	0.951991	71.0	keep	H2: Pre-attention causal depthwise conv (kernel=4) — delta -0.0017
+1c9ce1f	0.955985	71.0	discard	H3: Z-loss on output logits (1e-4 coeff) — delta +0.004 REGRESSION
+41f0cfc	0.000000	80.0	crash	H4: Sandwich norm (post-norm on attn/MLP) — OOM
+dd00471	0.951769	71.0	keep	H5: Per-head attention temperature (50 params) — delta -0.0002 from H2, -0.0019 from baseline
+969509e	0.951846	71.0	discard	H6: Conv smoothing on V (zero cost) — flat, no improvement
+592a6f9	0.948232	71.0	keep	H7: Partial RoPE 75% — delta -0.0035 from prev, -0.0054 from baseline
+56cd726	0.948432	71.0	discard	H8: Attention softcap=30 — flat, no improvement
+1dc114f	0.951494	67.8	discard	H9: Remove conv (test if partial RoPE subsumes) — conv is needed, regression +0.003
+c430035	0.000000	80.0	crash	H10: Learnable RoPE frequencies — OOM (dynamic cos/sin backprop)
+d676740	0.948813	71.0	discard	H11: RoPE base=50000 — slight regression +0.0006
+cd06123	0.951307	67.8	discard	H12: Q-norm only (no K-norm) — regression +0.003, K-norm is essential

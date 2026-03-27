@@ -1,0 +1,59 @@
+9225ab9 feat: x0_lambdas 0.25→0.2 at 10×640 — wider model may need less input skip
+3a946f6 feat: 10×640 DBS=64→128 — test if larger micro-batch fits in VRAM
+283c743 feat: 10×640 with DBS=64 — test intermediate width (5 heads, ~85M params)
+e69af4a feat: FINAL_LR_FRAC 0.03→0.01 — probe lower bound
+5e7c542 feat: FINAL_LR_FRAC 0.05→0.03 — test lower final LR
+c079ee8 feat: x0_lambdas init 0.2→0.25 — more input skip
+d01eefd feat: short window 384→256 — test tighter local attention
+acd7ded feat: WD 0.2→0.1 — test at 2400 steps with batch=262K
+3edece7 feat: Muon LR 0.04→0.03 — retune for 2401 steps
+85b922c feat: warmdown 0.6→0.7 — scale with higher step count (2407 steps)
+357eff7 feat: deeper-thinner 10×512 (DEPTH=10, AR=39)
+28584a6 feat: apply known-good H100 hyperparams (batch=262K, warmdown=0.6, FINAL_LR=0.05, softcap=12, window=384)
+0a01718 feat: H100 baseline with 7.5min budget, warmdown 0.3, x0_lambdas 0.2
+4fb6f46 feat: softcap 10→12 — testing between 10 (best) and 15 (original)
+990ce6d feat: reduce softcap 15→10 — tighter logit regularisation
+fbc7624 feat: reduce weight decay 0.2→0.1 — batch=8 noise provides implicit reg
+9e9932a feat: increase x0_lambdas init 0.2→0.3 — revisit for batch=8 regime
+3831853 feat: decrease Muon LR 0.03→0.02 — testing lower bound
+8385c09 feat: decrease Muon LR 0.04→0.03 for batch=8 noisy gradients
+b978c2c feat: halve batch again (16→8, 32K→16K tokens/step) for ~4× original steps
+34ebb94 feat: halve batch size (32→16, 65K→32K tokens/step) for 2× more opt steps
+a3d770f chore: gitignore tracking files so git reset doesn't wipe them
+b88e34c fix: MPS device compatibility in prepare.py
+3c3f0b0 feat: increase x0_lambdas init 0.1 → 0.2
+722c18a feat: reduce warmdown ratio 0.5 → 0.3 + fix API calls
+79cca53 feat: add MPS compatibility patches for Apple Silicon
+32a1460 Merge pull request #301 from indianspeedster/master
+513fe6f add AMD ROCm fork to notable forks section
+c2450ad Guard against infinite loop when no training shards exist, fix README typo
+0be1e4f fix NaN loss not caught by fast-fail check
+ebf3578 fix(train): make NaN fast-fail check explicit
+09ebea4 Guard against infinite loop when no training shards exist, fix README typo
+c12eef7 Include beginner's guide to neural networks
+b5ba8ac fix NaN loss not caught by fast-fail check
+068d93d clarify that results.tsv should not be committed, leave untracked
+c92bee5 some docs on what to play with to make autoresearch better on smaller computers
+2224cd7 reshuffle readme a bit and link to tiny stories for apple silicon guidance
+f16ece4 clarification to baseline run instruction, there was some language from a previous version that wasn't fully cleaned up
+9264224 add notable fork mlx
+500114a Honor --download-workers instead of hardcoding 8 download workers
+7043095 add macos fork
+777e443 fix(prepare): honor --download-workers
+6fdefa7 instruct the agent to also read README, should be good context
+b0d0474 clarify note on platforms
+8a5c486 bunch of small changes to docs and files, and a teaser figure with a blooper :)
+032d203 minor tweaks, pin val shard
+47ec1ad tweaks to docs for both humans and agents
+ada84e5 soften the language just a bit
+bd75534 Fix agent crash blindspot by forcing it to read traceback
+bdf0c0d Allow agent to diagnose crashes by reading the python stack trace
+bb54287 Merge pull request #2 from marcinbogdanski/fix/fa3-non-hopper-fallback
+17b480a add fallback FA3 kernel for non-Hopper GPUs
+9c383a8 add analysis notebook for convenience
+69eb7f9 cleanup more references to spawn.sh
+ae81d55 remove spawn.sh reference from README (file was deleted)
+4ab35a9 also ref twitter
+1e207aa dam, erase experimental file from before that snuck through in my purge
+2a70301 small tweak readme
+b11d6f2 initial commit

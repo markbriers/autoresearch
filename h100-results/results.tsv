@@ -1,0 +1,119 @@
+commit	val_bpb	memory_gb	status	description
+e6d79c1	1.350108	26.1	keep	baseline
+fc6adf6	1.353994	24.1	discard	VE LR 0.3 (halved from 0.6) — bilinear coupling hypothesis — marginal regression
+722c18a	1.348613	24.1	keep	warmdown ratio 0.5→0.3 — more steps at full LR
+3c3f0b0	1.344953	24.1	keep	x0_lambdas init 0.1→0.2 — stronger input skip in shallow model
+bf6c082	1.347956	24.1	discard	softcap 15→30 — regression, softcap=15 is better for this arch
+fc305ff	1.496132	31.9	discard	differential attention (manual attention path) — 40% slower, OOM-adjacent, only 228 steps
+0145d30	1.413882	34.4	discard	HEAD_DIM 128→64 (4 heads) — MPS SDPA scales memory with head count, 254 steps
+94ea8b4	1.363247	24.7	discard	warmdown 0.3→0.15 — too little cooldown hurts convergence
+34ebb94	1.332807	12.4	keep	batch 32→16, 65K→32K tokens/step — 569 steps, best improvement -0.012
+b978c2c	1.325292	6.5	keep	batch 16→8, 32K→16K tokens/step — 1195 steps, -0.020 from original
+a163612	1.349339	3.7	discard	batch 8→4, 8K tokens/step — too noisy, 2336 steps but regression
+601d109	1.330891	7.6	discard	ASPECT_RATIO 64→96 (384-dim, 19.7M params) — more capacity but fewer steps (842 vs 1195)
+c7a29c9	1.328005	6.0	discard	Muon LR 0.04→0.06 — slight regression, 0.04 better for batch=8
+8385c09	1.317505	6.0	keep	Muon LR 0.04→0.03 — lower LR with noisy batch=8 gradients, -0.008
+3831853	1.316588	6.0	keep	Muon LR 0.03→0.02 — marginal further improvement -0.001
+9e9932a	1.309136	6.1	keep	x0_lambdas 0.2→0.3 — stronger input skip in batch=8 regime, -0.007
+62d0269	1.309913	6.1	discard	x0_lambdas 0.3→0.4 — marginal regression, 0.3 is optimal
+3749627	1.316859	6.1	discard	5% LR warmup — wasted steps at reduced LR hurt more than stability helped
+15357aa	1.312189	6.1	discard	[EXPLORATORY] embedding LR 0.6→0.3 — regression, 0.6 is better
+a971a22	1.313677	6.1	discard	Muon momentum 0.95→0.97 — too sluggish, 0.95 is better
+c6acfec	1.339394	6.6	discard	[EXPLORATORY] VE disabled — large regression, VE is essential
+a971a22	1.313677	6.1	discard	Muon momentum 0.95→0.97 — too sluggish
+3749627	1.316859	6.1	discard	5% warmup — wasted steps
+15357aa	1.312189	6.1	discard	embedding LR 0.6→0.3 — worse
+8cbb1dc	1.316163	7.1	discard	VE on all layers — alternating pattern is better
+57345c1	1.319839	4.8	discard	batch 8→6 (12K tokens/step) — worse, batch=8 is the sweet spot
+fbc7624	1.309109	6.0	keep	weight decay 0.2→0.1 — essentially flat, marginal improvement
+9bcb1a4	1.317445	6.1	discard	unembedding LR 0.004→0.008 — regression, 0.004 is better
+53b18c2	1.311372	6.1	discard	gradient clipping max_norm=1.0 — constrains useful signal
+b634de7	1.313757	6.1	discard	Adam β1 0.8→0.9 — regression, 0.8 is better for this arch
+adcbd4b	1.313077	6.0	discard	warmdown 0.3→0.2 + FINAL_LR_FRAC 0→0.1 — cosine-to-zero is optimal
+40eb836	1.321776	7.1	discard	depth 4→5 (256-dim preserved) — steps more important than depth
+d48f580	1.610793	6.1	discard	label smoothing 0.1 — catastrophic for LM pretraining BPB
+ee9ef04	1.322164	7.1	discard	z-loss 1e-4 — redundant with softcap, wastes compute
+990ce6d	1.308625	6.1	keep	softcap 15→10 — tighter logit reg helps with noisy batch=8
+7c8634f	1.309569	6.1	discard	softcap 10→8 — too tight, 10 is optimal
+4fb6f46	1.308101	6.1	keep	softcap 10→12 — new best! 12 beats 10 and 15
+6c9c7b0	1.310112	6.1	discard	Muon momentum ramp 300→600 — 300 is better
+3e03233	1.309409	6.1	discard	scalar LR 0.5→0.3 — 0.5 is better
+5d17aed	1.321328	6.0	discard	[EXPLORATORY] QK norm removed — QK norm is essential for convergence
+--- H100 NVL Phase ---
+4de5525	1.084707	45.1	keep	H100 baseline: DEPTH=8, 512-dim, 50.3M params, 505 steps
+75dd16f	1.083814	45.1	keep	softcap 15→12 — MPS finding transfers to H100, -0.001
+6ef18c9	1.093902	45.6	discard	DiffAttn — noise-cancelling sub-head pairs, but 21% fewer params (39.8M vs 50.3M)
+0a6779d	1.084680	45.1	discard	WD 0.2→0.1 — doesn't transfer to H100, large batch prefers more WD
+1f4ca8c	1.088027	80.8	discard	depth 8→12 same width 512-dim — 100.9M params, 250 steps, too few steps
+a0da25b	1.059993	49.9	keep	deeper-thinner: depth 8→12, dim 512→384, 46.4M params, -0.024 ← BEST
+8cbc79f	1.072298	65.1	discard	depth 16, dim 384 — 59.8M params, 379 steps, diminishing returns from depth
+7302413	1.058801	50.0	keep	Muon LR 0.04→0.06 — retune for 384-dim, -0.001
+c34ea3d	1.057306	50.0	keep	Muon LR 0.06→0.08 — further improvement, -0.001
+505d270	1.062105	50.0	discard	Muon LR 0.08→0.10 — too high, regression
+3d9c86d	1.062251	50.0	discard	x0_lambdas 0.2→0.3 — 12-layer model needs less input skip
+6dda129	1.065410	50.1	discard	HEAD_DIM 128→64 (6 heads) — more heads worse, per-head capacity matters
+5bdb2ce	1.063899	59.3	discard	MLP 4x→6x expansion — 53.5M params, 428 steps, throughput loss dominates
+5d66125	1.042115	49.8	keep	batch 2^19→2^18 (262K), 972 steps, -0.015 ← BEST
+307a729	1.046743	25.1	discard	batch 2^18→2^17 (131K), 1908 steps — too noisy
+9a207c6	1.041611	49.8	keep	Muon LR 0.08→0.06 — retune for batch=262K, -0.001
+fe3beff	1.037839	49.8	keep	Muon LR 0.06→0.04 — further improvement at batch=262K, -0.004 ← BEST
+b8cae45	1.038565	49.8	discard	Muon LR 0.04→0.03 — slight regression, 0.04 is optimal
+af702d7	1.044158	49.8	discard	xIELU activation — 889 steps (slower), worse than ReluSquared
+1b56f2f	1.038150	49.8	discard	embedding LR 0.6→0.4 — slight regression, 0.6 is fine
+f81ea99	1.036207	49.8	keep	warmdown 0.3→0.4 — more cooldown at 972 steps, -0.002 ← BEST
+b6b382e	1.036677	49.8	discard	warmdown 0.4→0.5 — slight regression, 0.4 is optimal
+4e020d1	1.037923	49.8	discard	WD 0.2→0.3 — slight regression, 0.2 is optimal
+080a5af	1.035887	49.8	keep	all-short window (S) — less attention compute, marginal improvement ← BEST
+50c7cf3	1.036200	49.8	discard	softcap 12→10 — marginal regression, 12 is fine
+e8fd7a1	1.042037	53.1	discard	depth 14, dim 384 — more VE layers inflate params, fewer steps
+d02ba7a	1.041929	37.0	discard	VE every 4th layer — fewer params but VE quality too valuable
+b0e6a36	1.040674	49.8	discard	NS steps 5→3 — worse orthogonalization, minimal throughput gain
+ff9414d	1.036087	49.8	discard	LayerNorm Scaling 1/sqrt(depth) — resid_lambdas already compensate
+5ca6619	1.052278	73.1	discard	ultra-deep 20×256 — 73.1M params (VE inflation), 615 steps
+bb5ac6a	1.036061	49.8	discard	x0_lambdas 0.2→0.1 — flat, learnable scalars converge regardless
+1a9a1e6	3.215849	46.4	crash	embedding tying — init/LR mismatch catastrophic
+78b3de6	1.036888	49.8	discard	embedding LR 0.6→0.8 — slight regression
+520e969	1.035006	49.8	keep	FINAL_LR_FRAC 0→0.05 — keep small LR during warmdown, -0.001 ← BEST
+1905f9a	1.035910	49.8	discard	FINAL_LR_FRAC 0.05→0.10 — too high, 0.05 is optimal
+87d2390	1.037855	49.8	discard	Adam β1 0.8→0.9 — regression, 0.8 still better
+194ba8d	1.037079	49.8	discard	Muon momentum ramp 300→500 — regression, 300 is better
+afdcce5	1.042629	31.5	discard	MQA (n_kv_head=1) — reduced KV/VE capacity hurts, 31.5M params
+773554a	1.033199	49.8	keep	short window 512 (quarter context) — 1019 steps, -0.002 ← BEST
+634421b	1.031697	49.8	keep	short window 256 (1/8 context) — 1057 steps, -0.002 ← BEST
+e069637	1.032566	49.8	discard	short window 128 (1/16) — too small, regression
+adf5a65	1.033036	49.8	discard	Muon LR 0.04→0.035 — slight regression, 0.04 still optimal
+3a7d993	1.031411	49.8	keep	10S+2L window — 2 full-context layers at end, -0.000
+45092b8	1.030600	49.8	keep	9S+3L window — 3 full-context layers at end, -0.001 ← BEST
+aae1d7f	1.032258	49.8	discard	8S+4L window — too many long layers, regression
+c5e9e05	1.032167	49.8	discard	mid+end long (L at 4 + last 2) — early global context less useful
+0013646	1.031566	49.8	discard	unembedding LR 0.004→0.006 — slight regression
+654c0ac	1.032152	49.8	discard	Muon β2 0.95→0.99 — regression, 0.95 optimal
+db633f7	1.031330	49.8	discard	VE gate channels 32→64 — slight regression
+d2beeeb	1.036461	49.8	discard	no softcap — logit regularization still needed
+24da618	1.028859	39.7	keep	depth 10, dim 384 — 39.7M params, 1207 steps, -0.002 ← BEST
+c20e1a7	1.033000	33.0	discard	depth 8, dim 384 — 1445 steps but quality too low per step
+4a9f4ea	1.028694	39.7	keep	Muon LR 0.04→0.03 at depth=10, -0.000 ← BEST
+5565116	1.030572	39.7	discard	Muon LR 0.03→0.02 — too low, regression
+4228728	1.028509	39.7	keep	warmdown 0.4→0.5 at depth=10, -0.000
+087f536	1.028247	39.7	keep	warmdown 0.5→0.6 at depth=10, -0.000 ← BEST
+e2ce22a	1.028629	39.7	discard	warmdown 0.6→0.7 — slight regression, 0.6 optimal
+08e7552	1.024074	60.8	keep	10×512, 60.8M params, 846 steps, -0.004 ← BEST
+d558297	1.038020	85.9	discard	10×640 — too wide, 603 steps, regression
+03919f0	1.023513	60.8	keep	Muon LR 0.03→0.04 at 10×512, -0.001 ← BEST
+157d31c	1.024568	60.8	discard	Muon LR 0.04→0.05 — regression, 0.04 optimal
+426920f	1.024073	60.8	discard	8S+2L window — regression, 3 long layers better
+468a86a	1.023723	60.8	discard	WD 0.2→0.1 — slight regression, 0.2 still better
+95efa5c	1.023762	60.8	discard	softcap 12→10 — marginal regression at 10×512
+c074777	1.038485	96.0	discard	11×640 (wrong AR) — too big
+690a6fb	1.024647	68.2	discard	11×512 — extra VE layer hurts, 10 optimal
+6dab2ae	1.023739	60.8	discard	FINAL_LR_FRAC 0.05→0.02 — marginal regression
+62f502b	1.023258	60.8	keep	short window 256→384 — marginally better, -0.000 ← BEST
+266bc8f	1.023509	60.8	discard	short window 384→320 — regression, 384 optimal
+37dd633	1.103885	61.5	discard	SwiGLU MLP — c_gate init bug, catastrophic regression
+afab0fa	1.031438	61.5	discard	SwiGLU (correct init) — slower (770 steps), ReluSquared better
+b3b7212	1.027332	44.0	discard	shared VE — per-layer VE diversity matters
+f55f2fa	1.024561	60.8	discard	embedding LR 0.6→1.0 — regression
+6cc892c	1.023518	60.8	discard	warmdown 0.6→0.5 at 10×512 — slight regression, 0.6 optimal
+b7d7cad	1.024943	60.8	discard	VE gate full input (512→n_kv) — overfit, 32-channel better
+791f375	1.024078	66.1	discard	MLP 4x→5x — throughput loss, regression
+0cfeb75	1.024585	60.8	discard	remove VE gate — input-dependent gating is valuable

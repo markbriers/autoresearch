@@ -1,0 +1,49 @@
+commit	val_bpb	memory_gb	status	description
+0a01718	0.977763	45.1	keep	H100 7.5min baseline: DEPTH=8, 512-dim, batch=524K, 1368 steps
+6ffec78	1.080267	51.0	discard	per-dimension MLP residual scaling (nGPT eigen LR) — massive regression, conflicts with Muon
+080bc01	0.987765	45.2	discard	low-rank VE (rank=128, 4x compression) — 38M params, regression +0.010, bottleneck too aggressive
+4b6eeaf	1.722050	49.2	discard	cosine similarity logits replacing softcap — catastrophic, discards norm information
+28584a6	0.969390	44.9	keep	known-good H100 config: batch=262K, warmdown=0.6, FINAL_LR=0.05, softcap=12, window=384, 2820 steps
+357eff7	0.961937	55.0	keep	deeper-thinner 10×512: 60.8M params, 2407 steps
+85b922c	0.961480	55.0	keep	warmdown 0.6→0.7 for higher step count ← BEST
+b54c9c4	0.971271	49.9	discard	parallel attn+MLP (PaLM-style) — regression, attn→MLP info flow matters at this scale
+ff4a205	0.961738	55.0	discard	softcap 12→15 — flat, 12 is optimal regardless of step count
+00dd7fe	0.979912	49.8	discard	12×384 (46.4M params, 2608 steps) — worse, 512-dim width is essential
+ff7c8c8	0.983540	55.0	discard	stochastic depth (p_max=0.2) — adds noise without throughput gain, model already well-regularized
+3edece7	0.959949	55.0	keep	Muon LR 0.04→0.03 — lower LR for higher step count, -0.002 ← BEST
+b6f4e45	0.959968	55.0	discard	Muon LR 0.03→0.02 — flat, 0.03 is optimal
+c520976	0.964828	27.8	discard	batch 262K→131K — 4485 steps but too noisy, regression +0.005
+a33dc4f	0.961559	55.0	discard	all-short window — regression, 3 long-context layers (SSSL) are needed
+6f03fbb	0.961766	55.0	discard	7S+3L (long at end) — spread SSSL is better than concentrated
+acd7ded	0.959650	55.0	keep	WD 0.2→0.1 — marginal improvement ← BEST
+1b4d2f7	0.959996	55.0	discard	embedding LR 0.6→0.4 — marginal regression, 0.6 better
+eca0725	0.959848	60.2	discard	DEPTH 11 (68.2M params, 2204 steps) — flat, 10 is optimal
+d01eefd	0.959171	55.0	keep	short window 384→256 — tighter local attention, marginal improvement ← BEST
+92160a7	0.959356	55.0	discard	short window 256→192 — too tight, 256 is optimal
+99d3df2	0.961108	55.0	discard	x0_lambdas 0.2→0.15 — regression, less input skip hurts
+c079ee8	0.959019	55.0	keep	x0_lambdas 0.2→0.25 — marginal improvement ← BEST
+5abe743	0.959444	55.0	discard	x0_lambdas 0.25→0.3 — regression, 0.25 is optimal
+b2b7916	0.959051	55.0	discard	embedding LR 0.6→0.8 — flat, 0.6 is fine
+728c220	0.959295	55.0	discard	warmdown 0.7→0.75 — slight regression
+5e7c542	0.958926	55.0	keep	FINAL_LR_FRAC 0.05→0.03 — marginal improvement
+e69af4a	0.958888	55.0	keep	FINAL_LR_FRAC 0.03→0.01 — marginal improvement ← BEST
+cabc997	0.959061	55.0	discard	FINAL_LR_FRAC 0.01→0.0 — 0.01 is optimal
+2e81f1b	0.959151	55.0	discard	RoPE base 10000→5000 — marginal regression, default is fine
+e7f37c5	0.961762	55.2	discard	EMA (beta=0.99) for eval — regression, EMA captures too much variation during pretraining
+c100dba	0.959514	55.0	discard	Muon momentum 0.95→0.93 — marginal regression, 0.95 is optimal
+49fdc0f	0.963410	50.4	discard	GQA n_kv_head=2 — regression +0.005, KV capacity is essential at this scale
+7fe4590	0.960197	55.0	discard	tiny warmup 0.5% — regression, model benefits from full LR from start
+15acbf3	0.958894	55.0	discard	NS steps 5→7 — identical result, 5 is already converged
+c100dba	0.959514	55.0	discard	Muon momentum 0.95→0.93 — marginal regression
+7248b7f	0.960468	55.0	discard	seed 42→0 — seed 42 is better, variance ~0.002
+9aaf010	0.965572	55.2	discard	deep supervision (aux loss at layer 5) — regression, extra FLOPs costly
+626ea17	0.962580	55.0	discard	focal loss (gamma=1) — changes training objective, hurts CE/BPB
+a7b9531	0.964276	55.0	discard	WD 0.1→0.0 — WD is needed, +0.005 regression
+080f950	0.973643	55.0	discard	GELU replacing ReluSquared — non-sparse activation much worse, +0.015
+71f6d09	0.959740	55.0	discard	c_proj init zeros→small random — zero init is better
+eda850a	0.963346	55.0	discard	9×512 (57.7M, 2630 steps) — fewer layers hurts, 10 is optimal
+283c743	0.956183	34.6	keep	10×640 DBS=64 (85.9M, 1764 steps) — wider model beats 10×512!
+3a946f6	0.953816	67.8	keep	10×640 DBS=128 (85.9M, 1790 steps) — better GPU utilization ← BEST
+7feed40	0.955144	67.8	discard	Muon LR 0.03→0.04 at 640-dim — regression, 0.03 optimal
+947db87	0.954976	67.8	discard	warmdown 0.7→0.75 at 640-dim — regression
+cec80dc	0.969626	68.1	discard	batch 262K→524K at 640-dim — only 905 steps, much worse
