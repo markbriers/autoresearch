@@ -1,4 +1,6 @@
-# v7 Three-Agent Research Protocol — Implementation Plan
+# v7 Three-Agent Research Protocol — Implementation Plan (Revised)
+
+> **Revision 2 (2026-04-08):** Switched from agent teams to subagents (sequential workflow, no inter-agent messaging needed). Added enriched Evaluator role (knowledge curator, pattern analysis, calibration tracking). Added two-level context isolation (within-cycle via subagents, between-cycle via external bash loop). See "Differences from Previous Plan" at end.
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
