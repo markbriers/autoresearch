@@ -1,0 +1,7 @@
+commit	val_bpb	memory_gb	status	description
+baseline	0.959552	67.8	keep	Baseline: unmodified train.py
+c1a366e	0.955919	67.8	keep	H1: xIELU activation replacing ReluSquared
+556f97e	0.958368	74.2	reject	H2: Peri-LN post-sublayer RMS normalization
+3896913	0.956189	67.2	keep	H3: SwiGLU gated MLP replacing ReluSquared
+c5095f7	0.954713	67.8	keep	H4: Learnable per-head attention temperature
+bfb7fea	0.955944	67.8	pending_evaluation	H5: xIELU + Attention Temperature Stack

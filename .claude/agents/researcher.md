@@ -48,7 +48,7 @@ Read the files listed above. Pay special attention to:
 
 ### Step 2: Search -- Two Domain Pairings
 
-Search for papers across two distinct domain pairings (four domains total). The domains within each pairing must cross conceptual boundaries. Both papers in a pairing must be read in full (methods section, not just abstract).
+Search for papers across two distinct domain pairings (four domains total). Each pairing MUST contain exactly one ML/DL paper (Domain A) and one paper from OUTSIDE machine learning, deep learning, and optimisation (Domain B). Valid Domain B fields include: signal processing, control theory, information theory, neuroscience, physics, biology, telecommunications, compressed sensing, statistical mechanics, ecology, economics, materials science, fluid dynamics, or any other non-ML discipline. Two ML papers from different subfields (e.g., "activation functions" and "attention mechanisms") is NOT cross-domain and will be REJECTED by the Evaluator. Both papers in a pairing must be read in full (methods section, not just abstract).
 
 For each paper, decompose:
 - Source primitive: The specific mechanism

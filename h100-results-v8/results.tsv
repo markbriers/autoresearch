@@ -1,0 +1,11 @@
+commit	val_bpb	memory_gb	status	description
+baseline	0.959552	67.8	keep	Baseline: unmodified train.py
+6284b21	0.945117	79.1	refuted	H10: SwiGLU MLP (replace ReluSquared with SiLU-gated linear unit)
+215bdf7	0.953754	66.2	confirmed	H12: Learned Soft-Shrinkage Activation (ShrinkReLU) - shifted ReLU threshold
+a96705b	0.956652	69.4	inconclusive	H13: Divisive Normalization in Attention Output (gain control on attention output)
+f889c46	1.095295	67.9	refuted	H16: Learned RMSNorm Gain (Affine RMSNorm) - stacked with ShrinkReLU
+4ce0f2a	0.953771	68.1	confirmed	H15: Dimension-Reduced SwiGLU (hidden_dim=1728) replacing ShrinkReLU
+971b74c	1.830049	69.3	invalid_stale_cache	H17: Per-Head Attention Output Scaling (HeadScale) - INVALID: stale torch.compile cache from SwiGLU
+a4974a5	1.097629	66.3	invalid_stale_cache	H20: Learned Per-Layer Norm Scaling (NormScale) - INVALID: stale torch.compile cache from SwiGLU
+f303c1f	1.830455	78.8	invalid_stale_cache	H18: Learned Sublayer Output Scaling (SubScale) - INVALID: stale torch.compile cache from SwiGLU
+3899582	0.953048	70.2	pending_evaluation	H19: Learned Output Softcap Temperature stacked with ShrinkReLU

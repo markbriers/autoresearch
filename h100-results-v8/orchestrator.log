@@ -1,0 +1,38 @@
+[2026-04-09 16:41:50 UTC] === v7 loop started ===
+[2026-04-09 16:41:50 UTC] Working directory: /home/researcher/autoresearch
+[2026-04-09 16:41:50 UTC] Stop file: /home/researcher/autoresearch/STOP (touch to halt)
+[2026-04-09 16:41:50 UTC] --- Cycle 1 starting ---
+[2026-04-09 17:54:37 UTC] Cycle 1 completed successfully.
+[2026-04-09 17:54:47 UTC] --- Cycle 2 starting ---
+[2026-04-09 18:45:05 UTC] Cycle 2 completed successfully.
+[2026-04-09 18:45:15 UTC] --- Cycle 3 starting ---
+ REFUTED (over VRAM/time budget) |
+| H12 ShrinkReLU | activation | -0.006 | **CONFIRMED** |
+| H13 Divisive Norm | attention | -0.003 | INCONCLUSIVE |
+
+**Key takeaways:**
+- **ShrinkReLU is the first confirmed mechanism** — learned soft-threshold before ReLU-squared, only 10 scalar params, zero overhead
+- SwiGLU showed the strongest bpb improvement ever seen (-0.014) but needs dimension reduction to fit resource budget — flagged as a high-priority follow-up
+- Calibration note: researcher predictions were directionally correct but systematically underestimated VRAM for new projection layers
+
+Commit: `afc418b`. Cycle exiting cleanly.
+[2026-04-09 17:54:37 UTC] Cycle 1 completed successfully.
+[2026-04-09 17:54:47 UTC] --- Cycle 2 starting ---
+## Cycle 4 Complete
+
+**Results:**
+
+| Hypothesis | Subsystem | val_bpb delta | Verdict |
+|---|---|---|---|
+| H15: Dim-Reduced SwiGLU (1728) | MLP/gated-activation | -0.005781 | CONFIRMED |
+| H16: Learned RMSNorm Gain | normalisation | +0.135743 | REFUTED |
+
+**Key takeaways:**
+- H15 confirmed that SwiGLU works within resource budget at reduced hidden dim, but produces the same -0.006 delta as ShrinkReLU — suggesting an **MLP subsystem ceiling** at this model scale
+- H16 catastrophically failed due to optimizer LR misconfiguration (scalar_lr=0.5 applied to 13K per-dim params). Not a mechanism failure but a pre-flight blind spot
+- **ShrinkReLU retained as incumbent** (cheaper resources, same performance)
+- Engineering budget exhausted (5/5 runs). Programme has 2 confirmed mechanisms (ShrinkReLU, dim-reduced SwiGLU) and the -0.006 MLP ceiling observation
+
+Committed as `a4279ef`. Cycle exiting cleanly.
+[2026-04-09 18:45:05 UTC] Cycle 2 completed successfully.
+[2026-04-09 18:45:15 UTC] --- Cycle 3 starting ---

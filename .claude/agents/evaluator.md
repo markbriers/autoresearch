@@ -34,7 +34,9 @@ For each hypothesis with status PROPOSED:
 
 3. Read `evaluations.md` and check pivot directives. If the hypothesis targets a BLOCKED subsystem or fine-grained subcategory, REJECT it: "Subsystem [X] is BLOCKED per pivot directive."
 
-4. Check for repetition. If substantially similar to a previously REFUTED hypothesis, REJECT unless the contract explicitly articulates what is mechanistically different.
+4. Check cross-domain compliance. The Papers field must cite exactly one ML/DL paper and one paper from outside ML/DL/optimisation (e.g., signal processing, control theory, neuroscience, physics, biology, telecommunications). If both papers are from ML or closely related subfields, REJECT: "Both papers are from within ML. The protocol requires one paper from outside ML/DL/optimisation."
+
+5. Check for repetition. If substantially similar to a previously REFUTED hypothesis, REJECT unless the contract explicitly articulates what is mechanistically different.
 
 5. Decision: change status to APPROVED or REJECTED (with a one-sentence reason) in `hypotheses.md`.
 
