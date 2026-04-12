@@ -86,7 +86,7 @@ For each domain pairing, produce at least one hypothesis as a sprint contract:
 **Implementation sketch:** [what changes]
 
 **Information gain analysis:**
-- P(success): [estimated probability this improves val_bpb beyond threshold]
+- P(success): [your estimated probability this improves val_bpb beyond threshold — be honest, the Evaluator will independently estimate this too, and the divergence between your estimates is used to prioritise testing]
 - If CONFIRMED, I learn: [what mechanistic insight does success provide?]
 - If REFUTED, I learn: [what mechanistic insight does failure provide?]
 - Expected information gain: [low/medium/high — high means BOTH outcomes are informative]

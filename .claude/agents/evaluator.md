@@ -38,7 +38,16 @@ For each hypothesis with status PROPOSED:
 
 5. Check for repetition. If substantially similar to a previously REFUTED hypothesis, REJECT unless the contract explicitly articulates what is mechanistically different.
 
-5. Decision: change status to APPROVED or REJECTED (with a one-sentence reason) in `hypotheses.md`.
+6. Independent P(success) estimate. For each hypothesis that passes checks 1-5, write your own estimate of P(success) — the probability that this intervention will meet the CONFIRMED threshold. You have NOT seen the Researcher's reasoning process, only the sprint contract. Your estimate is therefore genuinely independent. Write it to the contract in `hypotheses.md`:
+
+```
+**Evaluator P(success):** [value between 0 and 1]
+**Belief divergence:** [absolute difference between Researcher's and Evaluator's P(success)]
+```
+
+High belief divergence (the Researcher and Evaluator disagree about whether this will work) is itself a signal of genuine uncertainty. Hypotheses with high divergence should be prioritised for testing because they sit in the region of the design space where our understanding is weakest and the expected information gain is highest.
+
+7. Decision: change status to APPROVED or REJECTED (with a one-sentence reason) in `hypotheses.md`. When multiple hypotheses are approved, recommend a testing order that prioritises high belief-divergence hypotheses first.
 
 You are not the agent that proposed these ideas. You have no stake in their success. The default answer is: "needs revision."
 
@@ -77,9 +86,11 @@ For each hypothesis with status PENDING_EVALUATION:
 
 **Verdict: [CONFIRMED / INCONCLUSIVE / REFUTED]**
 
-**Prediction calibration:** predicted [value] at [confidence], actual [value]. Directionally [correct/wrong]. Magnitude error: [Nx too optimistic/pessimistic/within range].
+**Prediction calibration:**
+- Researcher predicted [value] at [confidence]. Evaluator independently predicted P(success) = [value]. Belief divergence was [value].
+- Actual outcome: [value]. Directionally [correct/wrong] for [Researcher/Evaluator/both/neither].
 
-**Surprisal score:** [low/medium/high]. Low = outcome matched prediction. High = outcome was unexpected (in either direction). A REFUTED result that was predicted to succeed with high confidence is HIGH surprisal. A CONFIRMED result that was predicted to succeed with high confidence is LOW surprisal. The most informative experiments are the ones with highest surprisal — they reveal something the Researcher's model of the architecture did not anticipate.
+**Surprisal score:** [low/medium/high]. Computed from how far the outcome was from BOTH predictions. If both agents predicted success and the result was catastrophic: HIGH. If both predicted failure and it confirmed: HIGH. If predictions diverged and the outcome resolved the disagreement: MEDIUM (informative but one agent was right). If the outcome matched both predictions: LOW. The most informative experiments are the ones with highest surprisal — they reveal something neither agent's model of the architecture anticipated.
 
 **Evaluator notes:** [pattern observations, follow-up authorisation if any]
 ```
