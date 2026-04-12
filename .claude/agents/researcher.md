@@ -84,6 +84,12 @@ For each domain pairing, produce at least one hypothesis as a sprint contract:
 **Case for failure:** [one paragraph]
 **Feasibility pre-flight:** [params, VRAM, torch.compile]
 **Implementation sketch:** [what changes]
+
+**Information gain analysis:**
+- P(success): [estimated probability this improves val_bpb beyond threshold]
+- If CONFIRMED, I learn: [what mechanistic insight does success provide?]
+- If REFUTED, I learn: [what mechanistic insight does failure provide?]
+- Expected information gain: [low/medium/high — high means BOTH outcomes are informative]
 ```
 
 ### Step 4: Self-Critique -- Adversarial Debate
@@ -100,9 +106,11 @@ After generating all sprint contracts:
 
 2. Search OpenAlex for the closest existing implementation. If it already exists in substantially the same form, sharpen the novelty claim or discard.
 
-3. Rank hypotheses by expected information gain, not expected improvement.
+3. Rank hypotheses by expected information gain, not expected improvement. A hypothesis where P(success) is ~50% and both outcomes teach you something new is more valuable than one where P(success) is ~90% and success would be unsurprising. This follows the principle from AI2's AutoDiscovery: surprisal (the gap between prediction and outcome) is a better exploration signal than raw improvement. Prioritise hypotheses that will update your beliefs the most regardless of direction.
 
-4. Check pivot directives one final time. Remove any hypotheses targeting blocked subsystems.
+4. Read the Evaluator's exploration directives in evaluations.md. If the Evaluator has flagged high-surprisal subsystems ("outcomes in [subsystem] are hard to predict — explore further"), prioritise hypotheses in those subsystems. If the Evaluator has flagged low-surprisal subsystems ("outcomes in [subsystem] are predictable — diminishing returns"), deprioritise them.
+
+5. Check pivot directives one final time. Remove any hypotheses targeting blocked subsystems.
 
 Write 3-5 sprint contracts (post-debate, post-ranking) to `hypotheses.md` with status PROPOSED.
 

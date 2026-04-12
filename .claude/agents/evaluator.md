@@ -79,6 +79,8 @@ For each hypothesis with status PENDING_EVALUATION:
 
 **Prediction calibration:** predicted [value] at [confidence], actual [value]. Directionally [correct/wrong]. Magnitude error: [Nx too optimistic/pessimistic/within range].
 
+**Surprisal score:** [low/medium/high]. Low = outcome matched prediction. High = outcome was unexpected (in either direction). A REFUTED result that was predicted to succeed with high confidence is HIGH surprisal. A CONFIRMED result that was predicted to succeed with high confidence is LOW surprisal. The most informative experiments are the ones with highest surprisal — they reveal something the Researcher's model of the architecture did not anticipate.
+
 **Evaluator notes:** [pattern observations, follow-up authorisation if any]
 ```
 
@@ -114,7 +116,7 @@ NOW read `findings.md`. For each verdict you just issued:
 
 Split categories when you observe that a subsystem's failures have a common mechanistic theme that does not apply to all interventions in that subsystem.
 
-#### B.4: Prediction Calibration
+#### B.4: Prediction Calibration and Surprisal Analysis
 
 10. Compare the Researcher's predicted deltas to actual results across all evaluated hypotheses. Track systematic bias and write a calibration note to `evaluations.md`:
 
@@ -122,11 +124,13 @@ Split categories when you observe that a subsystem's failures have a common mech
 ## Calibration Notes
 
 **As of cycle N:** The Researcher's predicted deltas are consistently [Nx] too [optimistic/pessimistic]. Out of [M] predictions, [K] were directionally correct. The Researcher should [specific adjustment].
+
+**Surprisal summary:** Highest-surprisal results this cycle: [list]. These reveal gaps in the Researcher's model of the architecture.
 ```
 
 This note persists across cycles. The next Researcher reads it and adjusts.
 
-#### B.5: Pivot Directives
+#### B.5: Pivot and Exploration Directives
 
 11. If a subsystem (or fine-grained subcategory) has 3+ failures with 0 confirmations, change its status to BLOCKED:
 
@@ -139,12 +143,23 @@ This note persists across cycles. The next Researcher reads it and adjusts.
 
 A BLOCKED subcategory reopens when a different subsystem produces a CONFIRMED result.
 
+12. Issue exploration directives based on surprisal patterns. Identify which subsystems have the highest average surprisal (outcomes are hardest to predict) and which have the lowest (outcomes are predictable). High-surprisal subsystems are where the Researcher's model is weakest, meaning they have the highest expected information gain from further experiments:
+
+```
+## Exploration Directives
+
+**HIGH SURPRISAL (explore further):** [subsystem] -- outcomes are hard to predict, indicating gaps in understanding. The Researcher should prioritise hypotheses here.
+**LOW SURPRISAL (diminishing returns):** [subsystem] -- outcomes are predictable. Further experiments here are unlikely to teach us anything new. Deprioritise.
+```
+
+This is the Bayesian surprise principle from AI2's AutoDiscovery applied as an exploration signal: direct the Researcher toward the parts of the design space where our uncertainty is highest, not where our expected improvement is highest.
+
 #### B.6: Follow-Up Authorisation
 
-12. If any hypothesis is INCONCLUSIVE and promising (e.g., delta = -0.002, just below threshold), you may authorise ONE follow-up:
+13. Authorise follow-ups based on surprisal, not just borderline results. The default is to accept the verdict and move on. Authorise ONE follow-up when:
+- A HIGH SURPRISAL result suggests the Researcher's mechanistic model is wrong in an interesting way (the follow-up should test a revised mechanistic story, not just a parameter tweak)
+- OR a borderline INCONCLUSIVE result (delta between -0.002 and -0.003) has a clear variation worth testing
 
 ```
-**FOLLOW-UP AUTHORISED:** [Hypothesis N]. Result (-0.002) is at boundary. Authorised variation: [specific change]. Write as new sprint contract with status PROPOSED.
+**FOLLOW-UP AUTHORISED:** [Hypothesis N]. [Reason: high surprisal / borderline result]. Authorised variation: [specific change with mechanistic rationale]. Write as new sprint contract with status PROPOSED.
 ```
-
-Do not authorise follow-ups routinely. The default is to accept the verdict and move on.
