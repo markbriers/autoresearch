@@ -1,0 +1,119 @@
+[2026-04-12 08:25:27 UTC] === v7 loop started ===
+[2026-04-12 08:25:27 UTC] Working directory: /home/researcher/autoresearch
+[2026-04-12 08:25:27 UTC] Stop file: /home/researcher/autoresearch/STOP (touch to halt)
+[2026-04-12 08:25:27 UTC] --- Cycle 1 starting ---
+[2026-04-12 10:24:09 UTC] Cycle 1 completed successfully.
+[2026-04-12 10:24:19 UTC] --- Cycle 2 starting ---
+[2026-04-12 11:57:17 UTC] Cycle 2 completed successfully.
+[2026-04-12 11:57:27 UTC] --- Cycle 3 starting ---
+[2026-04-12 13:37:40 UTC] Cycle 3 completed successfully.
+[2026-04-12 13:37:50 UTC] --- Cycle 4 starting ---
+[2026-04-12 14:01:48 UTC] Cycle 4 completed successfully.
+[2026-04-12 14:01:58 UTC] --- Cycle 5 starting ---
+[2026-04-12 15:45:49 UTC] Cycle 5 completed successfully.
+[2026-04-12 15:45:59 UTC] --- Cycle 6 starting ---
+[2026-04-12 16:21:40 UTC] Cycle 6 completed successfully.
+[2026-04-12 16:21:50 UTC] --- Cycle 7 starting ---
+[2026-04-12 16:55:36 UTC] Cycle 7 exited with code 143.
+[2026-04-12 16:55:46 UTC] STOP file detected. Halting loop.
+transfer
+- **Divisive normalization is a dead end** — sparse ReluSquared activations are incompatible with channel-pooled normalization
+- **Calibration note:** Researcher's predicted deltas are 1.5-7x too optimistic; needs magnitude recalibration
+
+**Follow-up authorized:** H1 (SwiGLU) with wider hidden dim (1792 vs 1664) to test if width reduction was the bottleneck.
+
+Committed as `2204da2`. The external loop can now start the next cycle.
+[2026-04-12 10:24:09 UTC] Cycle 1 completed successfully.
+[2026-04-12 10:24:19 UTC] --- Cycle 2 starting ---
+**Cycle 2 complete.** Committed as `833838e`.
+
+## Cycle 2 Summary
+
+**7 total experiments across 2 cycles.** 2 confirmed improvements over baseline (0.959340):
+
+| Rank | Experiment | val_bpb | Delta | Subsystem |
+|---|---|---|---|---|
+| 1 | **H6: SwiGLU (1792)** | 0.954376 | **-0.004964** | activation/MLP |
+| 2 | **H4: PD Residual Scaling** | 0.955143 | **-0.004197** | residuals |
+
+**Key strategic outcomes:**
+- **Stacking authorised:** H6 + H4 is the top priority for cycle 3 (orthogonal subsystems, expected combined delta -0.006 to -0.009)
+- **Retrospective residuals BLOCKED:** Both H3 and H7 failed — only anticipatory (derivative) mechanisms work at depth=10
+- **Attention subsystem:** H8 regressed; subsystem remains open pending implementation verification
+- **Untested:** positional, normalisation, embeddings, training-loop
+[2026-04-12 11:57:17 UTC] Cycle 2 completed successfully.
+[2026-04-12 11:57:27 UTC] --- Cycle 3 starting ---
+## Cycle 3 Complete
+
+**Results summary:**
+
+| Hypothesis | Delta | Verdict | Key finding |
+|---|---|---|---|
+| H10: SwiGLU+PD stack | -0.0057 | INCONCLUSIVE | Best absolute BPB (0.9536) but 37% subadditive — stacking discounts are real |
+| H12: LAWA/EMA | +0.004 | REFUTED | beta=0.999 too wide for 1800 steps; warmdown already handles averaging |
+| H13: Linf QK-norm | +0.007 | REFUTED | Worst regression yet; attention subsystem now 1 failure from BLOCKED |
+| H14: Factored embeddings | -0.003 | CONFIRMED | 3rd confirmation; 22% param reduction improves BPB (high surprisal) |
+
+**Programme totals (11 experiments):** 3 confirmed (H4, H6, H14), 4 refuted, 4 inconclusive.
+
+**Cycle 4 priorities:** Triple-stack (H10+H14), H11 Peri-LN (still approved), new research targeting untested subsystems.
+[2026-04-12 13:37:40 UTC] Cycle 3 completed successfully.
+[2026-04-12 13:37:50 UTC] --- Cycle 4 starting ---
+## Cycle 4 Complete
+
+**H11: Peri-LN Output Normalization** — **INCONCLUSIVE**
+- val_bpb: 0.958818 (delta = -0.000522 vs baseline 0.959340)
+- VRAM: 72.6 GB, Wall-clock: 1017.9s
+- The delta is only 17% of the -0.003 threshold needed for confirmation
+
+**Key insights from the evaluator:**
+- H11 reinforces a macro-pattern: interventions addressing deep-network problems (variance cascade, residual drift, truncation error) produce negligible effects at depth=10. Three experiments (H3, H7, H11) all cluster around delta -0.0005 to -0.0007.
+- Productive interventions at this scale target capacity (SwiGLU/H6), regularization (factored embeddings/H14), or local dynamics (PD derivative/H4) — not cascade/accumulation effects.
+- No follow-up authorised for H11. Standing authorisations for a triple-stack experiment (H6+H4+H14) remain the highest priority.
+
+Commit: `9a46bb0`. Cycle exiting cleanly for the next iteration.
+[2026-04-12 14:01:48 UTC] Cycle 4 completed successfully.
+[2026-04-12 14:01:58 UTC] --- Cycle 5 starting ---
+## Cycle 5 Complete
+
+**Summary of 4 experiments:**
+
+| Hypothesis | val_bpb | Delta | Verdict |
+|---|---|---|---|
+| H15: Triple Stack (SwiGLU+PD+Factored) | 0.956253 | -0.003087 | INCONCLUSIVE |
+| H19: SwiGLU + Factored Embeddings | 0.956265 | -0.003075 | INCONCLUSIVE |
+| H17: Tail-Phase EMA (beta=0.99) | 0.956133 | ~0 (contaminated) | REFUTED |
+| H16: 192-dim Factored Embeddings | 0.958777 | -0.000563 | INCONCLUSIVE |
+
+**Key discovery:** Factored embeddings interact *negatively* with SwiGLU — the 256-dim bottleneck constrains input rank, starving SwiGLU's gating mechanism. Combining them (H19: 0.956265) is worse than SwiGLU alone (H6: 0.954376). The best known configuration remains **H10 (SwiGLU+PD) at val_bpb=0.953648**.
+
+**New pivot directives:** training-loop/weight-averaging BLOCKED, stacking/with-factored-embeddings BLOCKED.
+
+**Follow-up authorized:** PD Residual + Factored Embeddings (without SwiGLU) to test if the negative interaction is SwiGLU-specific.
+
+**Programme totals:** 16 experiments across 5 cycles. 3 confirmed improvements, best stacked result 0.953648 (delta=-0.005692).
+[2026-04-12 15:45:49 UTC] Cycle 5 completed successfully.
+[2026-04-12 15:45:59 UTC] --- Cycle 6 starting ---
+## Cycle 6 Complete
+
+**Experiment:** H22 — PD Residual + Factored Embeddings (no SwiGLU)
+**Result:** val_bpb = 0.956004 (delta = -0.003336 from baseline)
+**Verdict:** CONFIRMED mechanically, but factored embeddings degraded PD performance (+0.000861 vs H4 alone)
+
+**Key finding:** Factored embeddings are a **universal stacking poison** — they degrade every partner (SwiGLU, PD, SwiGLU+PD), not just gated activations. The 256-dim bottleneck constrains the rank of the entire residual stream trajectory.
+
+**Programme status:** Engineering budget exhausted (17/17 runs). Best configuration remains **H10 (SwiGLU + PD, val_bpb = 0.953648)**.
+
+| Rank | Config | val_bpb | Delta |
+|------|--------|---------|-------|
+| 1 | H10: SwiGLU+PD | 0.953648 | -0.005692 |
+| 2 | H6: SwiGLU | 0.954376 | -0.004964 |
+| 3 | H4: PD residual | 0.955143 | -0.004197 |
+| 4 | H22: PD+Factored | 0.956004 | -0.003336 |
+| 5 | H14: Factored | 0.956125 | -0.003215 |
+
+Commit: `f3cb23a`
+[2026-04-12 16:21:40 UTC] Cycle 6 completed successfully.
+[2026-04-12 16:21:50 UTC] --- Cycle 7 starting ---
+[2026-04-12 16:55:36 UTC] Cycle 7 exited with code 143.
+[2026-04-12 16:55:46 UTC] STOP file detected. Halting loop.
