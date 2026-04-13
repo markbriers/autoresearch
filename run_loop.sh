@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
-# run_v7_loop.sh — External bash wrapper for unattended v7 operation.
+# run_loop.sh — External bash wrapper for unattended autonomous research.
 #
 # Starts a fresh Claude Code session per cycle. Each session runs one
 # complete Research -> Pre-Eval -> Implement -> Post-Eval -> Git snapshot
-# cycle via the /run-v7 slash command.
+# cycle via the /run-cycle slash command.
 #
 # State lives entirely in files (hypotheses.md, evaluations.md, findings.md,
 # results.tsv, research_log.md). Each cycle starts with zero context from
@@ -49,7 +49,7 @@ while true; do
 
     EXIT_CODE=0
     claude --dangerously-skip-permissions \
-        -p "/run-v7" \
+        -p "/run-cycle" \
         --output-format text \
         >> "$LOG" 2>&1 || EXIT_CODE=$?
 

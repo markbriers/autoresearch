@@ -58,67 +58,81 @@ Nine protocol iterations, 200+ experiments, ~£100 total compute on RunPod H100s
 ## Repository structure
 
 ```
-train.py                    — GPT training script (agent modifies this)
-prepare.py                  — data prep and evaluation utilities (fixed)
-program.md                  — latest agent instructions
+task.md                     — YOUR task definition (write this — see below)
+train.py                    — GPT training script (default target for the example)
+prepare.py                  — data prep and evaluation utilities (GPT-specific)
+program.md                  — reference documentation
 
 .claude/
   agents/
-    researcher.md           — Researcher subagent definition
-    evaluator.md            — Evaluator subagent definition
-    implementer.md          — Implementer subagent definition
+    researcher.md           — Researcher subagent (generic protocol, reads task.md)
+    evaluator.md            — Evaluator subagent (generic protocol, reads task.md)
+    implementer.md          — Implementer subagent (generic protocol, reads task.md)
   commands/
-    run-v7.md               — cycle orchestrator
+    run-cycle.md            — cycle orchestrator
     scholar.md              — OpenAlex paper search skill
 
-run_v7_loop.sh              — external bash loop for unattended runs
+run_loop.sh                 — external bash loop for unattended runs
+
+examples/
+  gpt-training/
+    task.md                 — worked example: GPT val_bpb optimisation
+    README.md               — pointer to full write-up
 
 docs/
   blog-post.md              — full write-up (~5000 words)
   gpu-cloud-setup.md        — RunPod H100 setup guide
-  plans/                    — implementation plans
+  plans/                    — design and implementation plans
 
-results/
-  v1/                       — v1 results (single loop, MPS + H100)
-  v2/                       — v2 results (phase separation)
-  v3/                       — v3 results (hard counter)
-  v4/                       — v4 results (step-bounded)
-  v5/                       — v5 results (frozen HPs, research-only)
-  v7/                       — v7 results (three subagents)
-  v8/                       — v8 results (cross-domain enforcement)
-  v9/                       — v9 results (Bayesian surprise)
+results/                    — historical results from GPT experiment (v1-v9)
 ```
 
 ## Quick start
 
-Follow Karpathy's original setup, then add the literature tools:
+### Using the GPT example (Karpathy's benchmark)
 
 ```bash
 # Standard setup
 uv sync
 uv run prepare.py
 
-# Add arxiv MCP
+# Copy the example task definition
+cp examples/gpt-training/task.md ./task.md
+
+# Add arxiv MCP for paper reading
 uv tool install arxiv-mcp-server
 claude mcp add arxiv $(which arxiv-mcp-server) -- --storage-path ~/.arxiv-mcp-server/papers
 
 # Single cycle (interactive)
-claude -p "/run-v7"
+claude -p "/run-cycle"
 
 # Unattended (loops until you touch STOP)
-chmod +x run_v7_loop.sh
-nohup ./run_v7_loop.sh &
+chmod +x run_loop.sh
+nohup ./run_loop.sh &
 ```
+
+### Using your own task
+
+Write a `task.md` in the project root with six required sections (see `examples/gpt-training/task.md` for reference):
+
+1. **Objective** — command to run, metric to extract, direction (min/max)
+2. **Intervention Space** — what the agent can modify, what is frozen
+3. **Evaluation** — noise floor, confirmation threshold, resource constraints
+4. **Domain Context** — prior knowledge about your problem domain
+5. **Subsystem Taxonomy** — categories for tracking interventions
+6. **Cross-Domain Requirement** — your field (Domain A) and what counts as outside (Domain B)
+
+Then run `/run-cycle` or `run_loop.sh` as above. The subagents read `task.md` at the start of each cycle and adapt to your task automatically.
 
 For cloud GPU setup (RunPod H100), see [docs/gpu-cloud-setup.md](docs/gpu-cloud-setup.md).
 
 ## Design choices (extending Karpathy's)
 
-- **Step-bounded, not time-bounded.** Fixed 1800 optimiser steps instead of 5-minute wall clock. Removes throughput bias that confounds architectural comparison.
-- **Frozen hyperparameters.** From v5 onwards, all HPs are locked. The agent can only modify architecture. This isolates the research contribution from engineering.
+- **Domain-agnostic protocol.** The three subagents and orchestrator are generic. All domain-specific content lives in `task.md`, which the user writes. The same protocol works for ML training, compiler optimisation, molecular simulation, or anything else with a measurable objective.
 - **Three subagents, not one.** Researcher generates, Implementer tests, Evaluator judges. The agent that proposes an idea cannot judge whether it worked.
-- **Cross-domain enforcement.** Each hypothesis must cite one ML paper and one paper from outside ML/DL/optimisation. This prevents "engineering with citations."
+- **Cross-domain enforcement.** Each hypothesis must cite one paper from the user's field and one from outside. The user defines what "outside" means in `task.md`. This prevents "engineering with citations."
 - **Bayesian surprise.** Independent P(success) estimates from Researcher and Evaluator. Belief divergence prioritises hypotheses where the agents disagree. High-surprisal results get exploration directives.
+- **Sprint contracts with hard thresholds.** Success criteria are defined before implementation, not after. The confirmation threshold is set by the user based on their noise floor.
 - **External bash loop.** Fresh Claude Code session per cycle. Zero shared context between cycles. Files are the only persistent memory.
 
 ## Upstream
