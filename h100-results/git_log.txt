@@ -1,0 +1,69 @@
+3d431d0 feat: 9×512 — test one fewer layer for more steps
+62f502b feat: short window 256→384 — probing between 256 and 512
+03919f0 feat: Muon LR 0.03→0.04 — retune for 512-dim
+08e7552 feat: ASPECT_RATIO 38→51 (model_dim 384→512) at depth=10
+087f536 feat: warmdown 0.5→0.6 — probing further
+4228728 feat: warmdown 0.4→0.5 — test at 1207 steps
+4a9f4ea feat: Muon LR 0.04→0.03 — retune for 10-layer model
+24da618 feat: depth 10, dim 384 — test 10-layer sweet spot
+45092b8 feat: 9S+3L window — 3 full-context layers at end
+3a7d993 feat: 10S+2L window pattern — 2 full-context layers at end
+634421b feat: short window 512→256 — 1/8 context for even faster steps
+773554a feat: short window 1024→512 — even less attention compute
+520e969 feat: FINAL_LR_FRAC 0→0.05 — keep small LR during warmdown
+080a5af feat: all-short window (S) — reduce attention compute for more steps
+f81ea99 feat: warmdown 0.3→0.4 — more cooldown time with 972 steps
+fe3beff feat: Muon LR 0.06→0.04 — probing lower bound
+9a207c6 feat: Muon LR 0.08→0.06 — retune for batch=262K
+5d66125 feat: batch 2^19→2^18 — more steps via no gradient accumulation
+c34ea3d feat: Muon LR 0.06→0.08 — probing upper bound for 384-dim
+7302413 feat: Muon LR 0.04→0.06 — retune for 384-dim model
+a0da25b feat: deeper-thinner — depth 8→12, model_dim 512→384 (~same params)
+75dd16f feat: softcap 15→12 — testing MPS-confirmed finding on H100
+4de5525 feat: apply MPS-confirmed findings (warmdown 0.3, x0_lambdas 0.2) for H100 baseline
+4fb6f46 feat: softcap 10→12 — testing between 10 (best) and 15 (original)
+990ce6d feat: reduce softcap 15→10 — tighter logit regularisation
+fbc7624 feat: reduce weight decay 0.2→0.1 — batch=8 noise provides implicit reg
+9e9932a feat: increase x0_lambdas init 0.2→0.3 — revisit for batch=8 regime
+3831853 feat: decrease Muon LR 0.03→0.02 — testing lower bound
+8385c09 feat: decrease Muon LR 0.04→0.03 for batch=8 noisy gradients
+b978c2c feat: halve batch again (16→8, 32K→16K tokens/step) for ~4× original steps
+34ebb94 feat: halve batch size (32→16, 65K→32K tokens/step) for 2× more opt steps
+a3d770f chore: gitignore tracking files so git reset doesn't wipe them
+b88e34c fix: MPS device compatibility in prepare.py
+3c3f0b0 feat: increase x0_lambdas init 0.1 → 0.2
+722c18a feat: reduce warmdown ratio 0.5 → 0.3 + fix API calls
+79cca53 feat: add MPS compatibility patches for Apple Silicon
+32a1460 Merge pull request #301 from indianspeedster/master
+513fe6f add AMD ROCm fork to notable forks section
+c2450ad Guard against infinite loop when no training shards exist, fix README typo
+0be1e4f fix NaN loss not caught by fast-fail check
+ebf3578 fix(train): make NaN fast-fail check explicit
+09ebea4 Guard against infinite loop when no training shards exist, fix README typo
+c12eef7 Include beginner's guide to neural networks
+b5ba8ac fix NaN loss not caught by fast-fail check
+068d93d clarify that results.tsv should not be committed, leave untracked
+c92bee5 some docs on what to play with to make autoresearch better on smaller computers
+2224cd7 reshuffle readme a bit and link to tiny stories for apple silicon guidance
+f16ece4 clarification to baseline run instruction, there was some language from a previous version that wasn't fully cleaned up
+9264224 add notable fork mlx
+500114a Honor --download-workers instead of hardcoding 8 download workers
+7043095 add macos fork
+777e443 fix(prepare): honor --download-workers
+6fdefa7 instruct the agent to also read README, should be good context
+b0d0474 clarify note on platforms
+8a5c486 bunch of small changes to docs and files, and a teaser figure with a blooper :)
+032d203 minor tweaks, pin val shard
+47ec1ad tweaks to docs for both humans and agents
+ada84e5 soften the language just a bit
+bd75534 Fix agent crash blindspot by forcing it to read traceback
+bdf0c0d Allow agent to diagnose crashes by reading the python stack trace
+bb54287 Merge pull request #2 from marcinbogdanski/fix/fa3-non-hopper-fallback
+17b480a add fallback FA3 kernel for non-Hopper GPUs
+9c383a8 add analysis notebook for convenience
+69eb7f9 cleanup more references to spawn.sh
+ae81d55 remove spawn.sh reference from README (file was deleted)
+4ab35a9 also ref twitter
+1e207aa dam, erase experimental file from before that snuck through in my purge
+2a70301 small tweak readme
+b11d6f2 initial commit

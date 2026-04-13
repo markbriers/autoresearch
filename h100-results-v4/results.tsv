@@ -1,0 +1,26 @@
+commit	val_bpb	memory_gb	status	description
+833395c	0.954364	66.2	keep	v4 baseline: 10x640, 85.9M params, 1800 steps (step-bounded)
+23f6da8	0.955807	66.4	discard	Mousse left-only curvature preconditioning (alpha=0.125, eigendecomp/10)
+b39b667	0.949314	40.2	keep	6x MLP expansion with DBS=64 (102.2M params, step-bounded retest)
+8c8bb46	1.830042	40.3	discard	DiffAttn (fixed lambda) + 6x MLP — catastrophic regression
+2e607ac	0.953205	40.5	discard	Anti-PGD (sigma=0.001) on Muon params + 6x MLP — noise hurts
+b98f023	0.947314	46.7	keep	8x MLP expansion (118.6M params, Tier B of H2)
+6fc8984	0.953941	46.7	discard	WSD schedule: warmdown 0.7→0.2 — Muon needs long warmdown
+780ae08	0.915143	66.6	keep	12 layers × 640 × 8x MLP (191.9M params) — massive improvement
+f321614	0.894903	46.9	keep	14 layers × 640 × 8x MLP (290.9M params, DBS=32) — exceeds 20min wall-clock
+b596d55	0.900795	77.4	discard	14 layers × 6x MLP × DBS=64 (245.9M params) — 8x MLP is better
+3c18084	0.897616	43.7	discard	13 layers × 8x MLP × DBS=32 (274.8M params) — exceeds 20min, depth=14 better
+b1e39fd	0.895109	46.9	discard	z-loss (1e-4) on depth=14 × 8x MLP — neutral, softcap already suffices
+cbbb6f9	0.923938	64.4	discard	14×512 × 8x MLP — width=512 too narrow, depth=12×640 is better
+81301b6	0.000000	0.0	crash	LayerDrop on depth=14 — breaks torch.compile (2x slowdown without it)
+3fe659f	3.215849	66.5	discard	Weight tying (wte=lm_head) depth=12×8x — LR conflict catastrophic
+618d97b	0.913071	39.3	keep	12 layers × 10x MLP × DBS=32 (220.2M params) — new best in time budget!
+5f12faa	1.829448	39.4	discard	DiffAttn learnable lambda on 12×10x MLP [REVIVAL] — still catastrophic
+4b9583d	0.912772	40.6	keep	12×768 ReluSquared-GLU (7x×3 projections, 227M params) — marginal improvement
+9cce079	0.910682	44.2	keep	12×768 ReluSquared-GLU 8x (248.5M params) — best val_bpb in ~20min
+66df991	0.907107	44.2	keep	12×768 SwiGLU 8x (248.5M params) — SwiGLU beats ReluSquared-GLU!
+269676d	0.895269	50.2	keep	14×896 SwiGLU 6x (313.3M params, 28min) — matches depth14×8x ReluSq!
+48f908a	0.912996	41.3	discard	12×768 SwiGLU 8x GQA(kv=2) — quality regression too large (+0.006)
+3219eb7	0.906837	44.2	keep	12×768 SwiGLU 8x MATRIX_LR=0.02 — slight improvement from lower LR
+f6a1504	0.896134	50.2	discard	14×896 SwiGLU 6x LR=0.02 — deeper model needs higher LR (0.03 better)
+34cfda3	0.907151	44.2	discard	12×768 SwiGLU 8x LR=0.015 — too low, 0.02 is sweet spot

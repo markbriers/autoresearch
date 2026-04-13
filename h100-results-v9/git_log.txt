@@ -1,0 +1,86 @@
+45e6e74 experiment: H26 Value Residual Mixing with Decaying Lambda
+f3cb23a cycle 6 snapshot: H22 PD+Factored CONFIRMED (delta=-0.003336) but factored embeddings universally degrade stacking partners. Budget exhausted (17/17). Best config remains H10 (SwiGLU+PD, val_bpb=0.953648)
+1e6863b experiment: H22 PD Residual + Factored Embeddings Stack (H4+H14, no SwiGLU)
+ad27f18 cycle 5 snapshot: H15 triple stack INCONCLUSIVE (negative SwiGLU+factored interaction), H19 SwiGLU+factored INCONCLUSIVE, H17 EMA REFUTED (baseline contamination), H16 192-dim INCONCLUSIVE. Best config remains H10 (SwiGLU+PD, val_bpb=0.953648)
+00b7e9d experiment: H16 Factored Embeddings Bottleneck Dim Sweep (192-dim)
+99b28b0 experiment: H17 Tail-Phase EMA with Narrow Window (beta=0.99, warmdown only)
+f96baeb experiment: H19 SwiGLU + Factored Embeddings (H6+H14 stack, no PD)
+3a550e5 experiment: H15 Triple Stack H6+H4+H14 (SwiGLU + PD Residual + Factored Embeddings)
+9a46bb0 cycle 4 snapshot: H11 Peri-LN output normalization INCONCLUSIVE (delta=-0.000522, val_bpb=0.958818), normalisation subsystem unpromising at depth=10
+7ee5dc8 experiment: H11 Peri-LN output normalization on sublayer outputs
+0096895 cycle 3 snapshot: H10 stacking INCONCLUSIVE (best BPB 0.9536 but subadditive), H12 EMA REFUTED, H13 Linf REFUTED, H14 factored embeddings CONFIRMED (delta=-0.003, 65M params)
+c4fe0c8 experiment: H14 Factored embeddings with 256-dim bottleneck
+46a41aa Revert "experiment: H13 QK-Norm Linf relaxation with 1/sqrt(head_dim) scaling"
+68b62e1 experiment: H13 QK-Norm Linf relaxation with 1/sqrt(head_dim) scaling
+d86cd40 experiment: H12 LAWA/EMA weight averaging (beta=0.999)
+9ef2f69 experiment: H10 SwiGLU + PD residual stacking (H6+H4 combined)
+833838e cycle 2 snapshot: H6 SwiGLU wider CONFIRMED (delta=-0.005), H7 leaky integral INCONCLUSIVE, H8 attn temperature REFUTED
+5be2cbe fix: cast head_temps to q.dtype for FA3 compatibility
+f7e802e experiment: H8 Per-head learnable attention temperature (init 1.0, at GPT level)
+b1e1919 experiment: H7 Leaky integral residual accumulator with integral_lambdas
+de57ecb experiment: H6 SwiGLU activation with hidden_dim=1792
+2204da2 cycle 1 snapshot: H4 PD residual scaling CONFIRMED (delta=-0.004), H1 SwiGLU INCONCLUSIVE, H2 div-norm REFUTED, H3 pred-corr INCONCLUSIVE
+c379b04 experiment: H4 Proportional-derivative residual scaling with learnable deriv_lambdas
+381231e experiment: H3 Predictor-corrector residual connections with learnable beta
+d25ea92 experiment: H2 Divisive normalization in MLP after ReluSquared
+5d67f4a experiment: H1 SwiGLU activation with 8/3 expansion ratio
+d491570 feat: v9 baseline with Bayesian surprise subagents
+ac0575b feat: independent P(success) estimates and belief divergence
+4010ef1 feat: integrate Bayesian surprise into subagent protocols
+98f0316 docs: ground epistemic curiosity claim with AutoDiscovery and CD-RLHF citations
+ce10e7e docs: add epistemic curiosity post-training point to TLDR
+41b2892 docs: add headline % improvement to TLDR
+12735fc docs: weave agent terminology through blog post
+c9f453e docs: tighten blog post, add TLDR
+f09eb27 docs: extend blog post to cover v6-v8 (adversarial gates, subagents, cross-domain enforcement)
+193cbc6 feat: v8 cross-domain enforcement + v7 baseline results
+f4316d0 feat: v7 three-subagent implementation (researcher, evaluator, implementer)
+1fc0554 feat: v7 three-agent research protocol + blog post updates
+b7dd6df docs: v6 research protocol + blog post revisions
+aa843a9 docs: complete autoresearch methodology and results (v1-v5)
+4fb6f46 feat: softcap 10→12 — testing between 10 (best) and 15 (original)
+990ce6d feat: reduce softcap 15→10 — tighter logit regularisation
+fbc7624 feat: reduce weight decay 0.2→0.1 — batch=8 noise provides implicit reg
+9e9932a feat: increase x0_lambdas init 0.2→0.3 — revisit for batch=8 regime
+3831853 feat: decrease Muon LR 0.03→0.02 — testing lower bound
+8385c09 feat: decrease Muon LR 0.04→0.03 for batch=8 noisy gradients
+b978c2c feat: halve batch again (16→8, 32K→16K tokens/step) for ~4× original steps
+34ebb94 feat: halve batch size (32→16, 65K→32K tokens/step) for 2× more opt steps
+a3d770f chore: gitignore tracking files so git reset doesn't wipe them
+b88e34c fix: MPS device compatibility in prepare.py
+3c3f0b0 feat: increase x0_lambdas init 0.1 → 0.2
+722c18a feat: reduce warmdown ratio 0.5 → 0.3 + fix API calls
+79cca53 feat: add MPS compatibility patches for Apple Silicon
+32a1460 Merge pull request #301 from indianspeedster/master
+513fe6f add AMD ROCm fork to notable forks section
+c2450ad Guard against infinite loop when no training shards exist, fix README typo
+0be1e4f fix NaN loss not caught by fast-fail check
+ebf3578 fix(train): make NaN fast-fail check explicit
+09ebea4 Guard against infinite loop when no training shards exist, fix README typo
+c12eef7 Include beginner's guide to neural networks
+b5ba8ac fix NaN loss not caught by fast-fail check
+068d93d clarify that results.tsv should not be committed, leave untracked
+c92bee5 some docs on what to play with to make autoresearch better on smaller computers
+2224cd7 reshuffle readme a bit and link to tiny stories for apple silicon guidance
+f16ece4 clarification to baseline run instruction, there was some language from a previous version that wasn't fully cleaned up
+9264224 add notable fork mlx
+500114a Honor --download-workers instead of hardcoding 8 download workers
+7043095 add macos fork
+777e443 fix(prepare): honor --download-workers
+6fdefa7 instruct the agent to also read README, should be good context
+b0d0474 clarify note on platforms
+8a5c486 bunch of small changes to docs and files, and a teaser figure with a blooper :)
+032d203 minor tweaks, pin val shard
+47ec1ad tweaks to docs for both humans and agents
+ada84e5 soften the language just a bit
+bd75534 Fix agent crash blindspot by forcing it to read traceback
+bdf0c0d Allow agent to diagnose crashes by reading the python stack trace
+bb54287 Merge pull request #2 from marcinbogdanski/fix/fa3-non-hopper-fallback
+17b480a add fallback FA3 kernel for non-Hopper GPUs
+9c383a8 add analysis notebook for convenience
+69eb7f9 cleanup more references to spawn.sh
+ae81d55 remove spawn.sh reference from README (file was deleted)
+4ab35a9 also ref twitter
+1e207aa dam, erase experimental file from before that snuck through in my purge
+2a70301 small tweak readme
+b11d6f2 initial commit

@@ -1,15 +1,7 @@
 """
 Autoresearch pretraining script. Single-GPU, single-file.
 Cherry-picked and simplified from nanochat.
-Usage: python train.py
-
-MPS compatibility patch:
-- Replaced Flash Attention 3 (CUDA-only) with PyTorch SDPA
-- Auto-detect device: cuda → mps → cpu
-- Sliding window attention is NOT supported by SDPA; all layers use full causal
-  attention. This changes the effective architecture slightly from SSSL on CUDA.
-- torch.compile disabled on MPS (experimental/unreliable on Apple Silicon)
-- Muon optimizer preserved (pure tensor math, works on MPS without CUDA kernels)
+Usage: uv run train.py
 """
 
 import os
@@ -25,27 +17,15 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# ---------------------------------------------------------------------------
-# Device auto-detection: cuda → mps → cpu
-# ---------------------------------------------------------------------------
-if torch.cuda.is_available():
-    _device_type = "cuda"
-elif torch.backends.mps.is_available():
-    _device_type = "mps"
-else:
-    _device_type = "cpu"
-
-# Flash Attention 3: only available on CUDA
-if _device_type == "cuda":
-    from kernels import get_kernel
-    cap = torch.cuda.get_device_capability()
-    repo = "varunneal/flash-attention-3" if cap == (9, 0) else "kernels-community/flash-attn3"
-    fa3 = get_kernel(repo).flash_attn_interface
-    USE_FA3 = True
-else:
-    USE_FA3 = False
+from kernels import get_kernel
+cap = torch.cuda.get_device_capability()
+# varunneal's FA3 is Hopper only, use kernels-community on non-Hopper GPUs
+repo = "varunneal/flash-attention-3" if cap == (9, 0) else "kernels-community/flash-attn3"
+fa3 = get_kernel(repo).flash_attn_interface
 
 from prepare import MAX_SEQ_LEN, TIME_BUDGET, Tokenizer, make_dataloader, evaluate_bpb
+TIME_BUDGET = 1200  # safety wall-clock kill at 20 minutes
+STEP_BUDGET = 1800  # fixed optimizer steps
 
 # ---------------------------------------------------------------------------
 # GPT Model
@@ -93,6 +73,7 @@ class CausalSelfAttention(nn.Module):
         self.c_k = nn.Linear(self.n_embd, self.n_kv_head * self.head_dim, bias=False)
         self.c_v = nn.Linear(self.n_embd, self.n_kv_head * self.head_dim, bias=False)
         self.c_proj = nn.Linear(self.n_embd, self.n_embd, bias=False)
+        self.attn_temperature = nn.Parameter(torch.ones(config.n_head))
         self.ve_gate_channels = 32
         self.ve_gate = nn.Linear(self.ve_gate_channels, self.n_kv_head, bias=False) if has_ve(layer_idx, config.n_layer) else None
 
@@ -111,23 +92,9 @@ class CausalSelfAttention(nn.Module):
         cos, sin = cos_sin
         q, k = apply_rotary_emb(q, cos, sin), apply_rotary_emb(k, cos, sin)
         q, k = norm(q), norm(k)
+        q = q * self.attn_temperature.to(q.dtype).view(1, 1, self.n_head, 1)
 
-        if USE_FA3:
-            # FA3 expects (B, T, H, D)
-            y = fa3.flash_attn_func(q, k, v, causal=True, window_size=window_size)
-        else:
-            # SDPA expects (B, H, T, D) — sliding window not supported, using full causal
-            q = q.transpose(1, 2)
-            k = k.transpose(1, 2)
-            v = v.transpose(1, 2)
-            # Expand KV heads for GQA if n_kv_head < n_head
-            if self.n_kv_head < self.n_head:
-                rep = self.n_head // self.n_kv_head
-                k = k.repeat_interleave(rep, dim=1)
-                v = v.repeat_interleave(rep, dim=1)
-            y = F.scaled_dot_product_attention(q, k, v, is_causal=True)
-            y = y.transpose(1, 2)
-
+        y = fa3.flash_attn_func(q, k, v, causal=True, window_size=window_size)
         y = y.contiguous().view(B, T, -1)
         y = self.c_proj(y)
         return y
@@ -136,14 +103,13 @@ class CausalSelfAttention(nn.Module):
 class MLP(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.c_fc = nn.Linear(config.n_embd, 4 * config.n_embd, bias=False)
-        self.c_proj = nn.Linear(4 * config.n_embd, config.n_embd, bias=False)
+        hidden_dim = 1664
+        self.gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+        self.up = nn.Linear(config.n_embd, hidden_dim, bias=False)
+        self.down = nn.Linear(hidden_dim, config.n_embd, bias=False)
 
     def forward(self, x):
-        x = self.c_fc(x)
-        x = F.relu(x).square()
-        x = self.c_proj(x)
-        return x
+        return self.down(F.silu(self.gate(x)) * self.up(x))
 
 
 class Block(nn.Module):
@@ -196,11 +162,13 @@ class GPT(nn.Module):
             torch.nn.init.uniform_(block.attn.c_k.weight, -s, s)
             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
             torch.nn.init.zeros_(block.attn.c_proj.weight)
-            torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
-            torch.nn.init.zeros_(block.mlp.c_proj.weight)
+            s_mlp = 1.0 / (config.n_embd ** 0.5)
+            torch.nn.init.uniform_(block.mlp.gate.weight, -s_mlp, s_mlp)
+            torch.nn.init.uniform_(block.mlp.up.weight, -s_mlp, s_mlp)
+            torch.nn.init.zeros_(block.mlp.down.weight)
         # Per-layer scalars
         self.resid_lambdas.fill_(1.0)
-        self.x0_lambdas.fill_(0.3)
+        self.x0_lambdas.fill_(0.2)
         # Value embeddings
         for ve in self.value_embeds.values():
             torch.nn.init.uniform_(ve.weight, -s, s)
@@ -273,14 +241,18 @@ class GPT(nn.Module):
     def setup_optimizer(self, unembedding_lr=0.004, embedding_lr=0.2, matrix_lr=0.02,
                         weight_decay=0.0, adam_betas=(0.8, 0.95), scalar_lr=0.5):
         model_dim = self.config.n_embd
-        matrix_params = list(self.transformer.h.parameters())
+        # Collect attn_temperature params
+        temp_params = []
+        for block in self.transformer.h:
+            temp_params.append(block.attn.attn_temperature)
+        matrix_params = [p for p in self.transformer.h.parameters() if not any(p is tp for tp in temp_params)]
         value_embeds_params = list(self.value_embeds.parameters())
         embedding_params = list(self.transformer.wte.parameters())
         lm_head_params = list(self.lm_head.parameters())
         resid_params = [self.resid_lambdas]
         x0_params = [self.x0_lambdas]
         assert len(list(self.parameters())) == (len(matrix_params) + len(embedding_params) +
-            len(lm_head_params) + len(value_embeds_params) + len(resid_params) + len(x0_params))
+            len(lm_head_params) + len(value_embeds_params) + len(resid_params) + len(x0_params) + len(temp_params))
         # Scale LR ∝ 1/√dmodel (tuned at 768 dim)
         dmodel_lr_scale = (model_dim / 768) ** -0.5
         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/768) = {dmodel_lr_scale:.6f}")
@@ -291,6 +263,10 @@ class GPT(nn.Module):
             dict(kind='adamw', params=resid_params, lr=scalar_lr * 0.01, betas=adam_betas, eps=1e-10, weight_decay=0.0),
             dict(kind='adamw', params=x0_params, lr=scalar_lr, betas=(0.96, 0.95), eps=1e-10, weight_decay=0.0),
         ]
+        if temp_params:
+            param_groups.append(
+                dict(kind='adamw', params=temp_params, lr=scalar_lr, betas=adam_betas, eps=1e-10, weight_decay=0.0),
+            )
         for shape in sorted({p.shape for p in matrix_params}):
             group_params = [p for p in matrix_params if p.shape == shape]
             param_groups.append(dict(
@@ -316,7 +292,7 @@ class GPT(nn.Module):
             x = block(x, ve, cos_sin, self.window_sizes[i])
         x = norm(x)
 
-        softcap = 12  # testing between 10 and 15
+        softcap = 15
         logits = self.lm_head(x)
         logits = logits.float()
         logits = softcap * torch.tanh(logits / softcap)
@@ -339,106 +315,55 @@ polar_express_coeffs = [
     (2.3465413258596377, -1.7097828382687081, 0.42323551169305323),
 ]
 
-# On CUDA, torch.compile fuses these into efficient kernels.
-# On MPS, torch.compile is unreliable so we run them eagerly — same math, just slower.
-if _device_type == "cuda":
-    @torch.compile(dynamic=False, fullgraph=True)
-    def adamw_step_fused(p, grad, exp_avg, exp_avg_sq, step_t, lr_t, beta1_t, beta2_t, eps_t, wd_t):
-        p.mul_(1 - lr_t * wd_t)
-        exp_avg.lerp_(grad, 1 - beta1_t)
-        exp_avg_sq.lerp_(grad.square(), 1 - beta2_t)
-        bias1 = 1 - beta1_t ** step_t
-        bias2 = 1 - beta2_t ** step_t
-        denom = (exp_avg_sq / bias2).sqrt() + eps_t
-        step_size = lr_t / bias1
-        p.add_(exp_avg / denom, alpha=-step_size)
+@torch.compile(dynamic=False, fullgraph=True)
+def adamw_step_fused(p, grad, exp_avg, exp_avg_sq, step_t, lr_t, beta1_t, beta2_t, eps_t, wd_t):
+    p.mul_(1 - lr_t * wd_t)
+    exp_avg.lerp_(grad, 1 - beta1_t)
+    exp_avg_sq.lerp_(grad.square(), 1 - beta2_t)
+    bias1 = 1 - beta1_t ** step_t
+    bias2 = 1 - beta2_t ** step_t
+    denom = (exp_avg_sq / bias2).sqrt() + eps_t
+    step_size = lr_t / bias1
+    p.add_(exp_avg / denom, alpha=-step_size)
 
-    @torch.compile(dynamic=False, fullgraph=True)
-    def muon_step_fused(stacked_grads, stacked_params, momentum_buffer, second_momentum_buffer,
-                        momentum_t, lr_t, wd_t, beta2_t, ns_steps, red_dim):
-        momentum = momentum_t.to(stacked_grads.dtype)
-        momentum_buffer.lerp_(stacked_grads, 1 - momentum)
-        g = stacked_grads.lerp_(momentum_buffer, momentum)
-        X = g.bfloat16()
-        X = X / (X.norm(dim=(-2, -1), keepdim=True) * 1.02 + 1e-6)
-        if g.size(-2) > g.size(-1):
-            for a, b, c in polar_express_coeffs[:ns_steps]:
-                A = X.mT @ X
-                B = b * A + c * (A @ A)
-                X = a * X + X @ B
-        else:
-            for a, b, c in polar_express_coeffs[:ns_steps]:
-                A = X @ X.mT
-                B = b * A + c * (A @ A)
-                X = a * X + B @ X
-        g = X
-        beta2 = beta2_t.to(g.dtype)
-        v_mean = g.float().square().mean(dim=red_dim, keepdim=True)
-        red_dim_size = g.size(red_dim)
-        v_norm_sq = v_mean.sum(dim=(-2, -1), keepdim=True) * red_dim_size
-        v_norm = v_norm_sq.sqrt()
-        second_momentum_buffer.lerp_(v_mean.to(dtype=second_momentum_buffer.dtype), 1 - beta2)
-        step_size = second_momentum_buffer.clamp_min(1e-10).rsqrt()
-        scaled_sq_sum = (v_mean * red_dim_size) * step_size.float().square()
-        v_norm_new = scaled_sq_sum.sum(dim=(-2, -1), keepdim=True).sqrt()
-        final_scale = step_size * (v_norm / v_norm_new.clamp_min(1e-10))
-        g = g * final_scale.to(g.dtype)
-        lr = lr_t.to(g.dtype)
-        wd = wd_t.to(g.dtype)
-        mask = (g * stacked_params) >= 0
-        stacked_params.sub_(lr * g + lr * wd * stacked_params * mask)
-else:
-    # No torch.compile on MPS/CPU — extract Python floats from CPU scalar tensors
-    # to avoid CPU/MPS tensor mixing errors
-    def adamw_step_fused(p, grad, exp_avg, exp_avg_sq, step_t, lr_t, beta1_t, beta2_t, eps_t, wd_t):
-        lr = lr_t.item()
-        wd = wd_t.item()
-        beta1 = beta1_t.item()
-        beta2 = beta2_t.item()
-        eps = eps_t.item()
-        step = step_t.item()
-        p.mul_(1 - lr * wd)
-        exp_avg.lerp_(grad, 1 - beta1)
-        exp_avg_sq.lerp_(grad.square(), 1 - beta2)
-        bias1 = 1 - beta1 ** step
-        bias2 = 1 - beta2 ** step
-        denom = (exp_avg_sq / bias2).sqrt() + eps
-        step_size = lr / bias1
-        p.add_(exp_avg / denom, alpha=-step_size)
-
-    def muon_step_fused(stacked_grads, stacked_params, momentum_buffer, second_momentum_buffer,
-                        momentum_t, lr_t, wd_t, beta2_t, ns_steps, red_dim):
-        momentum = momentum_t.item()
-        momentum_buffer.lerp_(stacked_grads, 1 - momentum)
-        g = stacked_grads.lerp_(momentum_buffer, momentum)
-        X = g.bfloat16()
-        X = X / (X.norm(dim=(-2, -1), keepdim=True) * 1.02 + 1e-6)
-        if g.size(-2) > g.size(-1):
-            for a, b, c in polar_express_coeffs[:ns_steps]:
-                A = X.mT @ X
-                B = b * A + c * (A @ A)
-                X = a * X + X @ B
-        else:
-            for a, b, c in polar_express_coeffs[:ns_steps]:
-                A = X @ X.mT
-                B = b * A + c * (A @ A)
-                X = a * X + B @ X
-        g = X
-        beta2 = beta2_t.item()
-        v_mean = g.float().square().mean(dim=red_dim, keepdim=True)
-        red_dim_size = g.size(red_dim)
-        v_norm_sq = v_mean.sum(dim=(-2, -1), keepdim=True) * red_dim_size
-        v_norm = v_norm_sq.sqrt()
-        second_momentum_buffer.lerp_(v_mean.to(dtype=second_momentum_buffer.dtype), 1 - beta2)
-        step_size = second_momentum_buffer.clamp_min(1e-10).rsqrt()
-        scaled_sq_sum = (v_mean * red_dim_size) * step_size.float().square()
-        v_norm_new = scaled_sq_sum.sum(dim=(-2, -1), keepdim=True).sqrt()
-        final_scale = step_size * (v_norm / v_norm_new.clamp_min(1e-10))
-        g = g * final_scale.to(g.dtype)
-        lr = lr_t.item()
-        wd = wd_t.item()
-        mask = (g * stacked_params) >= 0
-        stacked_params.sub_(lr * g + lr * wd * stacked_params * mask)
+@torch.compile(dynamic=False, fullgraph=True)
+def muon_step_fused(stacked_grads, stacked_params, momentum_buffer, second_momentum_buffer,
+                    momentum_t, lr_t, wd_t, beta2_t, ns_steps, red_dim):
+    # Nesterov momentum
+    momentum = momentum_t.to(stacked_grads.dtype)
+    momentum_buffer.lerp_(stacked_grads, 1 - momentum)
+    g = stacked_grads.lerp_(momentum_buffer, momentum)
+    # Polar express orthogonalization
+    X = g.bfloat16()
+    X = X / (X.norm(dim=(-2, -1), keepdim=True) * 1.02 + 1e-6)
+    if g.size(-2) > g.size(-1):
+        for a, b, c in polar_express_coeffs[:ns_steps]:
+            A = X.mT @ X
+            B = b * A + c * (A @ A)
+            X = a * X + X @ B
+    else:
+        for a, b, c in polar_express_coeffs[:ns_steps]:
+            A = X @ X.mT
+            B = b * A + c * (A @ A)
+            X = a * X + B @ X
+    g = X
+    # NorMuon variance reduction
+    beta2 = beta2_t.to(g.dtype)
+    v_mean = g.float().square().mean(dim=red_dim, keepdim=True)
+    red_dim_size = g.size(red_dim)
+    v_norm_sq = v_mean.sum(dim=(-2, -1), keepdim=True) * red_dim_size
+    v_norm = v_norm_sq.sqrt()
+    second_momentum_buffer.lerp_(v_mean.to(dtype=second_momentum_buffer.dtype), 1 - beta2)
+    step_size = second_momentum_buffer.clamp_min(1e-10).rsqrt()
+    scaled_sq_sum = (v_mean * red_dim_size) * step_size.float().square()
+    v_norm_new = scaled_sq_sum.sum(dim=(-2, -1), keepdim=True).sqrt()
+    final_scale = step_size * (v_norm / v_norm_new.clamp_min(1e-10))
+    g = g * final_scale.to(g.dtype)
+    # Cautious weight decay + parameter update
+    lr = lr_t.to(g.dtype)
+    wd = wd_t.to(g.dtype)
+    mask = (g * stacked_params) >= 0
+    stacked_params.sub_(lr * g + lr * wd * stacked_params * mask)
 
 
 class MuonAdamW(torch.optim.Optimizer):
@@ -523,20 +448,20 @@ HEAD_DIM = 128          # target head dimension for attention
 WINDOW_PATTERN = "SSSL" # sliding window pattern: L=full, S=half context
 
 # Optimization
-TOTAL_BATCH_SIZE = 2**14 # ~16K tokens per step: 4× more steps than original baseline
+TOTAL_BATCH_SIZE = 2**18  # ~262K tokens per optimizer step # ~524K tokens per optimizer step
 EMBEDDING_LR = 0.6      # learning rate for token embeddings (Adam)
 UNEMBEDDING_LR = 0.004  # learning rate for lm_head (Adam)
-MATRIX_LR = 0.02        # learning rate for matrix parameters (Muon) — testing lower bound
+MATRIX_LR = 0.03        # learning rate for matrix parameters (Muon)
 SCALAR_LR = 0.5         # learning rate for per-layer scalars (Adam)
-WEIGHT_DECAY = 0.1      # cautious weight decay for Muon — reduced, noisy batch=8 provides implicit reg
+WEIGHT_DECAY = 0.1      # cautious weight decay for Muon
 ADAM_BETAS = (0.8, 0.95) # Adam beta1, beta2
 WARMUP_RATIO = 0.0      # fraction of time budget for LR warmup
-WARMDOWN_RATIO = 0.3    # fraction of time budget for LR warmdown (reduced: 321 steps too few for 50% cooldown)
-FINAL_LR_FRAC = 0.0     # final LR as fraction of initial
+WARMDOWN_RATIO = 0.7    # fraction of time budget for LR warmdown
+FINAL_LR_FRAC = 0.01    # final LR as fraction of initial
 
 # Model size
-DEPTH = 4               # number of transformer layers (reduced from 8 for MPS/M4 Max throughput)
-DEVICE_BATCH_SIZE = 8    # per-device batch size (further reduced for even more opt steps)
+DEPTH = 10               # number of transformer layers
+DEVICE_BATCH_SIZE = 128  # per-device batch size (reduce if OOM)
 
 # ---------------------------------------------------------------------------
 # Setup: tokenizer, model, optimizer, dataloader
@@ -544,18 +469,10 @@ DEVICE_BATCH_SIZE = 8    # per-device batch size (further reduced for even more 
 
 t_start = time.time()
 torch.manual_seed(42)
-if _device_type == "cuda":
-    torch.cuda.manual_seed(42)
+torch.cuda.manual_seed(42)
 torch.set_float32_matmul_precision("high")
-device = torch.device(_device_type)
-print(f"Device: {device}")
-
-if _device_type == "cuda":
-    autocast_ctx = torch.amp.autocast(device_type="cuda", dtype=torch.bfloat16)
-else:
-    # MPS supports bfloat16 natively in PyTorch 2.9; use autocast
-    autocast_ctx = torch.amp.autocast(device_type=_device_type, dtype=torch.bfloat16)
-
+device = torch.device("cuda")
+autocast_ctx = torch.amp.autocast(device_type="cuda", dtype=torch.bfloat16)
 H100_BF16_PEAK_FLOPS = 989.5e12
 
 tokenizer = Tokenizer.from_directory()
@@ -601,9 +518,7 @@ optimizer = model.setup_optimizer(
     weight_decay=WEIGHT_DECAY,
 )
 
-# torch.compile: only on CUDA (MPS backend is experimental and often fails)
-if _device_type == "cuda":
-    model = torch.compile(model, dynamic=False)
+model = torch.compile(model, dynamic=False)
 
 train_loader = make_dataloader(tokenizer, DEVICE_BATCH_SIZE, MAX_SEQ_LEN, "train")
 x, y, epoch = next(train_loader)  # prefetch first batch
@@ -611,7 +526,7 @@ x, y, epoch = next(train_loader)  # prefetch first batch
 print(f"Time budget: {TIME_BUDGET}s")
 print(f"Gradient accumulation steps: {grad_accum_steps}")
 
-# Schedules (all based on progress = training_time / TIME_BUDGET)
+# Schedules (all based on progress = step / STEP_BUDGET)
 
 def get_lr_multiplier(progress):
     if progress < WARMUP_RATIO:
@@ -633,20 +548,13 @@ def get_weight_decay(progress):
 # Training loop
 # ---------------------------------------------------------------------------
 
-def device_synchronize():
-    """Synchronize the active device (CUDA or MPS)."""
-    if _device_type == "cuda":
-        torch.cuda.synchronize()
-    elif _device_type == "mps":
-        torch.mps.synchronize()
-
 t_start_training = time.time()
 smooth_train_loss = 0
 total_training_time = 0
 step = 0
 
 while True:
-    device_synchronize()
+    torch.cuda.synchronize()
     t0 = time.time()
     for micro_step in range(grad_accum_steps):
         with autocast_ctx:
@@ -657,7 +565,7 @@ while True:
         x, y, epoch = next(train_loader)
 
     # Progress and schedules
-    progress = min(total_training_time / TIME_BUDGET, 1.0)
+    progress = min(step / STEP_BUDGET, 1.0)
     lrm = get_lr_multiplier(progress)
     muon_momentum = get_muon_momentum(step)
     muon_weight_decay = get_weight_decay(progress)
@@ -676,7 +584,7 @@ while True:
         print("FAIL")
         exit(1)
 
-    device_synchronize()
+    torch.cuda.synchronize()
     t1 = time.time()
     dt = t1 - t0
 
@@ -705,7 +613,7 @@ while True:
     step += 1
 
     # Time's up — but only stop after warmup steps so we don't count compilation
-    if step > 10 and total_training_time >= TIME_BUDGET:
+    if step >= STEP_BUDGET:
         break
 
 print()  # newline after \r training log
@@ -721,14 +629,7 @@ with autocast_ctx:
 t_end = time.time()
 startup_time = t_start_training - t_start
 steady_state_mfu = 100 * num_flops_per_token * TOTAL_BATCH_SIZE * (step - 10) / total_training_time / H100_BF16_PEAK_FLOPS if total_training_time > 0 else 0
-
-if _device_type == "cuda":
-    peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
-elif _device_type == "mps":
-    # MPS memory tracking via driver (approximate)
-    peak_vram_mb = torch.mps.driver_allocated_memory() / 1024 / 1024
-else:
-    peak_vram_mb = 0.0
+peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
 
 print("---")
 print(f"val_bpb:          {val_bpb:.6f}")

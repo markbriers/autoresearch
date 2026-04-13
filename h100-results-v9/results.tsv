@@ -1,0 +1,19 @@
+commit	val_bpb	memory_gb	status	description
+baseline	0.959340	67.8	keep	Baseline: unmodified train.py
+5d67f4a	0.956880	65.6	inconclusive	H1: SwiGLU activation with 8/3 expansion ratio (hidden_dim=1664)
+d25ea92	0.963969	66.6	refuted	H2: Divisive normalization in MLP after ReluSquared (groups of 64)
+381231e	0.958786	69.3	inconclusive	H3: Predictor-corrector residual connections with learnable beta (init 0)
+c379b04	0.955143	69.3	confirmed	H4: PD residual scaling with learnable deriv_lambdas (init 0)
+de57ecb	0.954376	67.5	confirmed	H6: SwiGLU activation with hidden_dim=1792
+b1e1919	0.958639	69.3	inconclusive	H7: Leaky integral residual accumulator with integral_lambdas (init 0, decay 0.9)
+5be2cbe	0.963944	66.2	refuted	H8: Per-head learnable attention temperature (init 1.0, scalar_lr, at GPT level)
+9ef2f69	0.953648	72.3	inconclusive	H10: SwiGLU + PD residual stacking (H6+H4 combined)
+d86cd40	0.963275	68.1	refuted	H12: LAWA/EMA weight averaging (beta=0.999), last_iterate=0.963275, ema=1.142475
+68b62e1	0.966718	67.8	refuted	H13: QK-Norm Linf relaxation with 1/sqrt(head_dim) scaling
+c4fe0c8	0.956125	67.9	confirmed	H14: Factored embeddings with 256-dim bottleneck
+7ee5dc8	0.958818	72.6	inconclusive	H11: Peri-LN output normalization on sublayer outputs
+3a550e5	0.956253	72.1	inconclusive	H15: Triple Stack H6+H4+H14 (SwiGLU + PD Residual + Factored Embeddings)
+f96baeb	0.956265	69.2	inconclusive	H19: SwiGLU + Factored Embeddings (H6+H14 stack, no PD)
+99b28b0	0.956133	68.2	refuted	H17: Tail-Phase EMA (beta=0.99, warmdown only), last_iterate=0.956133, ema=0.956294 [BASELINE CONTAMINATED: H14 already in codebase]
+00b7e9d	0.958777	67.9	inconclusive	H16: Factored Embeddings Bottleneck Dim Sweep (192-dim)
+1e6863b	0.956004	69.5	confirmed	H22: PD Residual + Factored Embeddings Stack (H4+H14, no SwiGLU)

@@ -1,0 +1,10 @@
+commit	val_bpb	memory_gb	status	description
+3a946f6	0.953816	67.8	keep	v3 starting point: 10x640, 85.9M params, batch=262K, 1790 steps (v2 best)
+ffa275a	0.000000	0.0	crash	differential attention — two FA3 calls with zero-padded Q,K (OOM: CUBLAS_STATUS_ALLOC_FAILED)
+02956c7	0.964137	41.2	discard	6× MLP expansion (2560→3840) with DBS=64 — 1490 steps, +0.010 regression
+d94e8b8	0.963945	68.1	discard	EMA weight averaging (decay=0.995) — 1787 steps, +0.010 regression (no-EMA: 0.955)
+8b69ce0	1.747987	42.9	discard	2-token prediction aux loss (0.5×) DBS=64 — 1590 steps, +0.794 catastrophic regression
+dd48622	0.952837	67.8	keep	x0_lambdas init 0.25→0.30 — marginal improvement (-0.001), at noise floor
+9b45b35	2.568211	67.8	discard	embedding weight tying (wte=lm_head) — catastrophic +1.615 regression
+a9c1f0d	0.953076	67.8	discard	short window 256→128 — neutral (+0.0002), 14 extra steps didn't compensate
+9dc2a9b	0.952478	67.8	keep	Muon LR 0.03→0.04 — marginal improvement (-0.0004), new best
