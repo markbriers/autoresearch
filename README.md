@@ -1,92 +1,130 @@
-# autoresearch
+# autoresearch: from engineering to research
 
-![teaser](progress.png)
+A fork of [Karpathy's autoresearch](https://github.com/karpathy/autoresearch) that extends the autonomous ML experiment loop with academic literature access, cross-domain hypothesis synthesis, and a three-subagent protocol designed to make a coding agent behave more like a researcher than an engineer.
 
-*One day, frontier AI research used to be done by meat computers in between eating, sleeping, having other fun, and synchronizing once in a while using sound wave interconnect in the ritual of "group meeting". That era is long gone. Research is now entirely the domain of autonomous swarms of AI agents running across compute cluster megastructures in the skies. The agents claim that we are now in the 10,205th generation of the code base, in any case no one could tell if that's right or wrong as the "code" is now a self-modifying binary that has grown beyond human comprehension. This repo is the story of how it all began. -@karpathy, March 2026*.
+The original autoresearch gives a coding agent a GPT training script and lets it optimise val_bpb autonomously. This fork asks: what happens when you also give it access to the scientific literature and force it to read papers from outside machine learning?
 
-The idea: give an AI agent a small but real LLM training setup and let it experiment autonomously overnight. It modifies the code, trains for 5 minutes, checks if the result improved, keeps or discards, and repeats. You wake up in the morning to a log of experiments and (hopefully) a better model. The training code here is a simplified single-GPU implementation of [nanochat](https://github.com/karpathy/nanochat). The core idea is that you're not touching any of the Python files like you normally would as a researcher. Instead, you are programming the `program.md` Markdown files that provide context to the AI agents and set up your autonomous research org. The default `program.md` in this repo is intentionally kept as a bare bones baseline, though it's obvious how one would iterate on it over time to find the "research org code" that achieves the fastest research progress, how you'd add more agents to the mix, etc. A bit more context on this project is here in this [tweet](https://x.com/karpathy/status/2029701092347630069) and [this tweet](https://x.com/karpathy/status/2031135152349524125).
+The full write-up is in [docs/blog-post.md](docs/blog-post.md).
 
-## How it works
+## What this fork adds
 
-The repo is deliberately kept small and only really has three files that matter:
+### Three-subagent protocol (.claude/agents/)
 
-- **`prepare.py`** — fixed constants, one-time data prep (downloads training data, trains a BPE tokenizer), and runtime utilities (dataloader, evaluation). Not modified.
-- **`train.py`** — the single file the agent edits. Contains the full GPT model, optimizer (Muon + AdamW), and training loop. Everything is fair game: architecture, hyperparameters, optimizer, batch size, etc. **This file is edited and iterated on by the agent**.
-- **`program.md`** — baseline instructions for one agent. Point your agent here and let it go. **This file is edited and iterated on by the human**.
+Three Claude Code subagents with isolated context windows and restricted tool access:
 
-By design, training runs for a **fixed 5-minute time budget** (wall clock, excluding startup/compilation), regardless of the details of your compute. The metric is **val_bpb** (validation bits per byte) — lower is better, and vocab-size-independent so architectural changes are fairly compared.
+- **Researcher** (.claude/agents/researcher.md) — searches papers via OpenAlex and arxiv MCP, generates cross-domain hypotheses as sprint contracts with quantified success criteria. Must pair one ML paper with one non-ML paper (signal processing, neuroscience, control theory, etc.). Includes adversarial self-critique and P(success) estimates.
 
-If you are new to neural networks, this ["Dummy's Guide"](https://x.com/hooeem/status/2030720614752039185) looks pretty good for a lot more context.
+- **Evaluator** (.claude/agents/evaluator.md) — reviews sprint contracts, judges results against hard thresholds (val_bpb delta < -0.003 for CONFIRMED, default INCONCLUSIVE). No Bash, no web access. Computes independent P(success) estimates, belief divergence, surprisal scores. Maintains a subsystem tracker with pivot directives and prediction calibration notes. The knowledge curator of the programme.
+
+- **Implementer** (.claude/agents/implementer.md) — implements approved contracts, runs training, records raw numbers. No web access, no paper reading, no self-assessment. Cannot write CONFIRMED/REFUTED.
+
+### Orchestrator and loop
+
+- `.claude/commands/run-v7.md` — orchestrates one cycle: Research, Pre-Eval, Implement, Post-Eval, git snapshot
+- `run_v7_loop.sh` — external bash loop for unattended operation, fresh Claude Code session per cycle, exponential backoff on errors, graceful stop via `touch STOP`
+
+### Literature access
+
+- `.claude/commands/scholar.md` — OpenAlex API skill for relevance-ranked search across hundreds of millions of academic works
+- arxiv MCP server for full paper reading (search, download, read in markdown)
+
+### Step-bounded evaluation
+
+Replaced Karpathy's wall-clock time budget with a fixed step budget (1800 optimiser steps). This removes the throughput bias that caused the original benchmark to systematically favour sparse/fast activations over dense/slow ones. See the blog post for how this reversed the "ReluSquared > SwiGLU" finding that had survived 117 experiments.
+
+## Results
+
+Nine protocol iterations, 200+ experiments, ~£100 total compute on RunPod H100s. Full results in `results/v1` through `results/v9`.
+
+| Version | Key change | Runs | Confirmed | Notable finding |
+|---------|-----------|------|-----------|-----------------|
+| v1 | Literature access added | 117 | 0 research | Agent defaults to engineering (3/117 paper-driven) |
+| v2 | Phase separation | 48 | 0 research | Better hypotheses, all fail experimentally |
+| v3 | Hard counter | 4 | 0 | Throughput bias kills all creative ideas |
+| v4 | Step-bounded training | 22 | 0 research | SwiGLU > ReluSquared reversal; wider MLP works |
+| v5 | Frozen HPs, research-only | 13 | 3 | Partial RoPE via OFDM, depthwise conv, attn temp |
+| v6 | Adversarial gates, belief tracking | 39 | 8 | All known techniques; rediscovery problem |
+| v7 | Three subagents | 4 | 3 | Within-ML pairings; cross-domain too loose |
+| v8 | Non-ML Domain B enforced | 7 | 3 | ShrinkReLU (wavelet shrinkage), learned softcap (Jaynes) |
+| v9 | Bayesian surprise | 17 | 4 | PD residual scaling (control theory); subadditive stacking |
+
+### Key findings
+
+- **Mechanisms are VARIANT-level novel** — novel configurations of known families (PD residuals, ShrinkReLU), not wholly new mechanisms
+- **Empirical findings are arguably NOVEL** — 37% subadditive stacking discount for architectural modifications; QK-norm + softcap rigidity against learnable temperature
+- **The harness matters more than the model** — most of the work was in prompt constraints, tool restrictions, context isolation, and Bayesian surprise integration
+- **Cross-domain enforcement was the single most effective change** — one line requiring non-ML papers shifted hypothesis character immediately
+
+## Repository structure
+
+```
+train.py                    — GPT training script (agent modifies this)
+prepare.py                  — data prep and evaluation utilities (fixed)
+program.md                  — latest agent instructions
+
+.claude/
+  agents/
+    researcher.md           — Researcher subagent definition
+    evaluator.md            — Evaluator subagent definition
+    implementer.md          — Implementer subagent definition
+  commands/
+    run-v7.md               — cycle orchestrator
+    scholar.md              — OpenAlex paper search skill
+
+run_v7_loop.sh              — external bash loop for unattended runs
+
+docs/
+  blog-post.md              — full write-up (~5000 words)
+  gpu-cloud-setup.md        — RunPod H100 setup guide
+  plans/                    — implementation plans
+
+results/
+  v1/                       — v1 results (single loop, MPS + H100)
+  v2/                       — v2 results (phase separation)
+  v3/                       — v3 results (hard counter)
+  v4/                       — v4 results (step-bounded)
+  v5/                       — v5 results (frozen HPs, research-only)
+  v7/                       — v7 results (three subagents)
+  v8/                       — v8 results (cross-domain enforcement)
+  v9/                       — v9 results (Bayesian surprise)
+```
 
 ## Quick start
 
-**Requirements:** A single NVIDIA GPU (tested on H100), Python 3.10+, [uv](https://docs.astral.sh/uv/).
+Follow Karpathy's original setup, then add the literature tools:
 
 ```bash
-
-# 1. Install uv project manager (if you don't already have it)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# 2. Install dependencies
+# Standard setup
 uv sync
-
-# 3. Download data and train tokenizer (one-time, ~2 min)
 uv run prepare.py
 
-# 4. Manually run a single training experiment (~5 min)
-uv run train.py
+# Add arxiv MCP
+uv tool install arxiv-mcp-server
+claude mcp add arxiv $(which arxiv-mcp-server) -- --storage-path ~/.arxiv-mcp-server/papers
+
+# Single cycle (interactive)
+claude -p "/run-v7"
+
+# Unattended (loops until you touch STOP)
+chmod +x run_v7_loop.sh
+nohup ./run_v7_loop.sh &
 ```
 
-If the above commands all work ok, your setup is working and you can go into autonomous research mode.
+For cloud GPU setup (RunPod H100), see [docs/gpu-cloud-setup.md](docs/gpu-cloud-setup.md).
 
-## Running the agent
+## Design choices (extending Karpathy's)
 
-Simply spin up your Claude/Codex or whatever you want in this repo (and disable all permissions), then you can prompt something like:
+- **Step-bounded, not time-bounded.** Fixed 1800 optimiser steps instead of 5-minute wall clock. Removes throughput bias that confounds architectural comparison.
+- **Frozen hyperparameters.** From v5 onwards, all HPs are locked. The agent can only modify architecture. This isolates the research contribution from engineering.
+- **Three subagents, not one.** Researcher generates, Implementer tests, Evaluator judges. The agent that proposes an idea cannot judge whether it worked.
+- **Cross-domain enforcement.** Each hypothesis must cite one ML paper and one paper from outside ML/DL/optimisation. This prevents "engineering with citations."
+- **Bayesian surprise.** Independent P(success) estimates from Researcher and Evaluator. Belief divergence prioritises hypotheses where the agents disagree. High-surprisal results get exploration directives.
+- **External bash loop.** Fresh Claude Code session per cycle. Zero shared context between cycles. Files are the only persistent memory.
 
-```
-Hi have a look at program.md and let's kick off a new experiment! let's do the setup first.
-```
+## Upstream
 
-The `program.md` file is essentially a super lightweight "skill".
+This is a fork of [karpathy/autoresearch](https://github.com/karpathy/autoresearch). The original train.py, prepare.py, and benchmark design are Karpathy's work (MIT licence). This fork adds the methodology, literature access, subagent definitions, results, and write-up.
 
-## Project structure
-
-```
-prepare.py      — constants, data prep + runtime utilities (do not modify)
-train.py        — model, optimizer, training loop (agent modifies this)
-program.md      — agent instructions
-pyproject.toml  — dependencies
-```
-
-## Design choices
-
-- **Single file to modify.** The agent only touches `train.py`. This keeps the scope manageable and diffs reviewable.
-- **Fixed time budget.** Training always runs for exactly 5 minutes, regardless of your specific platform. This means you can expect approx 12 experiments/hour and approx 100 experiments while you sleep. There are two upsides of this design decision. First, this makes experiments directly comparable regardless of what the agent changes (model size, batch size, architecture, etc). Second, this means that autoresearch will find the most optimal model for your platform in that time budget. The downside is that your runs (and results) become not comparable to other people running on other compute platforms.
-- **Self-contained.** No external dependencies beyond PyTorch and a few small packages. No distributed training, no complex configs. One GPU, one file, one metric.
-
-## Platform support
-
-This code currently requires that you have a single NVIDIA GPU. In principle it is quite possible to support CPU, MPS and other platforms but this would also bloat the code. I'm not 100% sure that I want to take this on personally right now. People can reference (or have their agents reference) the full/parent nanochat repository that has wider platform support and shows the various solutions (e.g. a Flash Attention 3 kernels fallback implementation, generic device support, autodetection, etc.), feel free to create forks or discussions for other platforms and I'm happy to link to them here in the README in some new notable forks section or etc.
-
-Seeing as there seems to be a lot of interest in tinkering with autoresearch on much smaller compute platforms than an H100, a few extra words. If you're going to try running autoresearch on smaller computers (Macbooks etc.), I'd recommend one of the forks below. On top of this, here are some recommendations for how to tune the defaults for much smaller models for aspiring forks:
-
-1. To get half-decent results I'd use a dataset with a lot less entropy, e.g. this [TinyStories dataset](https://huggingface.co/datasets/karpathy/tinystories-gpt4-clean). These are GPT-4 generated short stories. Because the data is a lot narrower in scope, you will see reasonable results with a lot smaller models (if you try to sample from them after training).
-2. You might experiment with decreasing `vocab_size`, e.g. from 8192 down to 4096, 2048, 1024, or even - simply byte-level tokenizer with 256 possibly bytes after utf-8 encoding.
-3. In `prepare.py`, you'll want to lower `MAX_SEQ_LEN` a lot, depending on the computer even down to 256 etc. As you lower `MAX_SEQ_LEN`, you may want to experiment with increasing `DEVICE_BATCH_SIZE` in `train.py` slightly to compensate. The number of tokens per fwd/bwd pass is the product of these two.
-4. Also in `prepare.py`, you'll want to decrease `EVAL_TOKENS` so that your validation loss is evaluated on a lot less data.
-5. In `train.py`, the primary single knob that controls model complexity is the `DEPTH` (default 8, here). A lot of variables are just functions of this, so e.g. lower it down to e.g. 4.
-6. You'll want to most likely use `WINDOW_PATTERN` of just "L", because "SSSL" uses alternating banded attention pattern that may be very inefficient for you. Try it.
-7. You'll want to lower `TOTAL_BATCH_SIZE` a lot, but keep it powers of 2, e.g. down to `2**14` (~16K) or so even, hard to tell.
-
-I think these would be the reasonable hyperparameters to play with. Ask your favorite coding agent for help and copy paste them this guide, as well as the full source code.
-
-## Notable forks
-
-- [miolini/autoresearch-macos](https://github.com/miolini/autoresearch-macos) (MacOS)
-- [trevin-creator/autoresearch-mlx](https://github.com/trevin-creator/autoresearch-mlx) (MacOS)
-- [jsegov/autoresearch-win-rtx](https://github.com/jsegov/autoresearch-win-rtx) (Windows)
-- [andyluo7/autoresearch](https://github.com/andyluo7/autoresearch) (AMD)
-
-## License
+## Licence
 
 MIT
