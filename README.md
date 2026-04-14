@@ -69,8 +69,9 @@ program.md                  — reference documentation
     evaluator.md            — Evaluator subagent (generic protocol, reads task.md)
     implementer.md          — Implementer subagent (generic protocol, reads task.md)
   commands/
-    run-cycle.md            — cycle orchestrator
-    scholar.md              — OpenAlex paper search skill
+    setup-task.md           — interactive task definition wizard (/setup-task)
+    run-cycle.md            — cycle orchestrator (/run-cycle)
+    scholar.md              — OpenAlex paper search skill (/scholar)
 
 run_loop.sh                 — external bash loop for unattended runs
 
@@ -113,7 +114,14 @@ nohup ./run_loop.sh &
 
 ### Using your own task
 
-Write a `task.md` in the project root with six required sections (see `examples/gpt-training/task.md` for reference):
+The easiest way to get started is the interactive wizard:
+
+```bash
+claude
+# Then type: /setup-task
+```
+
+This walks you through six questions about your task and generates a validated `task.md`. Alternatively, write one manually with six required sections (see `examples/gpt-training/task.md` for reference):
 
 1. **Objective** — command to run, metric to extract, direction (min/max)
 2. **Intervention Space** — what the agent can modify, what is frozen
