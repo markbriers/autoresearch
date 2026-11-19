@@ -26,3 +26,14 @@ findings.md
 hypotheses.md
 run.log
 .mcp.json
+
+# Society experiment state (per arm, never committed)
+board.md
+labs/
+audits.jsonl
+audit_cache.json
+cycles.log
+arm.env
+orchestrator.log
+evaluations.md
+STOP

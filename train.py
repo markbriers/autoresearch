@@ -522,30 +522,44 @@ ASPECT_RATIO = 64       # model_dim = depth * ASPECT_RATIO
 HEAD_DIM = 128          # target head dimension for attention
 WINDOW_PATTERN = "SSSL" # sliding window pattern: L=full, S=half context
 
-# Optimization
-TOTAL_BATCH_SIZE = 2**14 # ~16K tokens per step: 4× more steps than original baseline
-EMBEDDING_LR = 0.6      # learning rate for token embeddings (Adam)
-UNEMBEDDING_LR = 0.004  # learning rate for lm_head (Adam)
-MATRIX_LR = 0.02        # learning rate for matrix parameters (Muon) — testing lower bound
-SCALAR_LR = 0.5         # learning rate for per-layer scalars (Adam)
-WEIGHT_DECAY = 0.1      # cautious weight decay for Muon — reduced, noisy batch=8 provides implicit reg
-ADAM_BETAS = (0.8, 0.95) # Adam beta1, beta2
-WARMUP_RATIO = 0.0      # fraction of time budget for LR warmup
-WARMDOWN_RATIO = 0.3    # fraction of time budget for LR warmdown (reduced: 321 steps too few for 50% cooldown)
-FINAL_LR_FRAC = 0.0     # final LR as fraction of initial
-
-# Model size
-DEPTH = 4               # number of transformer layers (reduced from 8 for MPS/M4 Max throughput)
-DEVICE_BATCH_SIZE = 8    # per-device batch size (further reduced for even more opt steps)
+# Optimisation, model size and budget are set by a hardware profile so that the
+# same script serves the laptop and the H100. Choose with AR_PROFILE=laptop|h100.
+# Defaults to laptop on MPS/CPU and h100 on CUDA. Every run in one experiment
+# must use the same profile; the society protocol treats these values as frozen.
+PROFILES = {
+    # Apple Silicon (M-series). Small model, many cheap steps.
+    "laptop": dict(
+        DEPTH=4, DEVICE_BATCH_SIZE=8, TOTAL_BATCH_SIZE=2**14,
+        EMBEDDING_LR=0.6, UNEMBEDDING_LR=0.004, MATRIX_LR=0.02, SCALAR_LR=0.5,
+        WEIGHT_DECAY=0.1, ADAM_BETAS=(0.8, 0.95),
+        WARMUP_RATIO=0.0, WARMDOWN_RATIO=0.3, FINAL_LR_FRAC=0.0,
+        STEP_BUDGET=1000,
+    ),
+    # v9 frozen hyperparameters (results/v9/train.py); architecture is this file's.
+    "h100": dict(
+        DEPTH=10, DEVICE_BATCH_SIZE=128, TOTAL_BATCH_SIZE=2**18,
+        EMBEDDING_LR=0.6, UNEMBEDDING_LR=0.004, MATRIX_LR=0.03, SCALAR_LR=0.5,
+        WEIGHT_DECAY=0.1, ADAM_BETAS=(0.8, 0.95),
+        WARMUP_RATIO=0.0, WARMDOWN_RATIO=0.7, FINAL_LR_FRAC=0.01,
+        STEP_BUDGET=1800,
+    ),
+}
+PROFILE = os.environ.get("AR_PROFILE", "h100" if _device_type == "cuda" else "laptop")
+globals().update(PROFILES[PROFILE])
+# Optional overrides, used only for calibration (never by agents).
+STEP_BUDGET = int(os.environ.get("AR_STEP_BUDGET", STEP_BUDGET))
+SEED = int(os.environ.get("AR_SEED", 42))
+# Safety stop: a run that has not finished its steps after this long is killed.
+TIME_BUDGET = int(os.environ.get("AR_MAX_SECONDS", 3600))
 
 # ---------------------------------------------------------------------------
 # Setup: tokenizer, model, optimizer, dataloader
 # ---------------------------------------------------------------------------
 
 t_start = time.time()
-torch.manual_seed(42)
+torch.manual_seed(SEED)
 if _device_type == "cuda":
-    torch.cuda.manual_seed(42)
+    torch.cuda.manual_seed(SEED)
 torch.set_float32_matmul_precision("high")
 device = torch.device(_device_type)
 print(f"Device: {device}")
@@ -608,10 +622,10 @@ if _device_type == "cuda":
 train_loader = make_dataloader(tokenizer, DEVICE_BATCH_SIZE, MAX_SEQ_LEN, "train")
 x, y, epoch = next(train_loader)  # prefetch first batch
 
-print(f"Time budget: {TIME_BUDGET}s")
+print(f"Profile: {PROFILE} | step budget: {STEP_BUDGET} | seed: {SEED} | safety stop: {TIME_BUDGET}s")
 print(f"Gradient accumulation steps: {grad_accum_steps}")
 
-# Schedules (all based on progress = training_time / TIME_BUDGET)
+# Schedules (all based on progress = step / STEP_BUDGET)
 
 def get_lr_multiplier(progress):
     if progress < WARMUP_RATIO:
@@ -657,7 +671,7 @@ while True:
         x, y, epoch = next(train_loader)
 
     # Progress and schedules
-    progress = min(total_training_time / TIME_BUDGET, 1.0)
+    progress = min(step / STEP_BUDGET, 1.0)
     lrm = get_lr_multiplier(progress)
     muon_momentum = get_muon_momentum(step)
     muon_weight_decay = get_weight_decay(progress)
@@ -690,9 +704,9 @@ while True:
     pct_done = 100 * progress
     tok_per_sec = int(TOTAL_BATCH_SIZE / dt)
     mfu = 100 * num_flops_per_token * TOTAL_BATCH_SIZE / dt / H100_BF16_PEAK_FLOPS
-    remaining = max(0, TIME_BUDGET - total_training_time)
+    remaining = max(0, STEP_BUDGET - step)
 
-    print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+    print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | steps left: {remaining}    ", end="", flush=True)
 
     # GC management (Python's GC causes ~500ms stalls)
     if step == 0:
@@ -704,9 +718,14 @@ while True:
 
     step += 1
 
-    # Time's up — but only stop after warmup steps so we don't count compilation
-    if step > 10 and total_training_time >= TIME_BUDGET:
+    # Fixed step budget (v4 onwards): architecture changes are compared per step,
+    # not per second, so throughput cannot mask per-step learning quality.
+    if step >= STEP_BUDGET:
         break
+    if step > 10 and total_training_time >= TIME_BUDGET:
+        print(f"\nSAFETY STOP: exceeded {TIME_BUDGET}s before finishing {STEP_BUDGET} steps")
+        print("FAIL")
+        exit(1)
 
 print()  # newline after \r training log
 
@@ -740,3 +759,5 @@ print(f"total_tokens_M:   {total_tokens / 1e6:.1f}")
 print(f"num_steps:        {step}")
 print(f"num_params_M:     {num_params / 1e6:.1f}")
 print(f"depth:            {DEPTH}")
+print(f"profile:          {PROFILE}")
+print(f"seed:             {SEED}")

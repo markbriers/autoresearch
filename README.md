@@ -128,3 +128,7 @@ This is a fork of [karpathy/autoresearch](https://github.com/karpathy/autoresear
 ## Licence
 
 MIT
+
+## Society experiment (feat/society)
+
+`society/` compares one researcher against four independent labs that share a score-free board, at equal compute and with a multi-seed audit before any change is kept. It runs on an Apple Silicon laptop (`laptop` profile in `train.py`) or an H100 (`h100` profile, matching v9). See [society/README.md](society/README.md).
